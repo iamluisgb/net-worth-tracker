@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Net Worth Tracker</title>
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <header class="main-header">
+            <div class="logo">Purse</div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button id="btn-settings" class="icon-btn" aria-label="Settings">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                        </path>
+                    </svg>
+                </button>
+                <button id="theme-toggle" class="icon-btn" aria-label="Toggle Theme">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5" />
+                        <path
+                            d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main id="main-content">
+            <!-- Dashboard View -->
+            <section id="dashboard" class="view active">
+                <div class="net-worth-card glass-panel">
+                    <span class="label">Total Net Worth</span>
+                    <h1 class="amount" id="total-net-worth">--</h1>
+                    <div class="trend positive">
+                        <span id="trend-value">+0.0%</span>
+                        <span class="period">this month</span>
+                    </div>
+                </div>
+
+                <!-- Chart Section -->
+                <div class="glass-panel" style="padding: 1rem;">
+                    <div class="chart-header"
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0;">History</h3>
+                        <select id="chart-filter" style="width: auto; padding: 0.25rem 0.5rem; font-size: 0.8rem;">
+                            <option value="all">All Assets</option>
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                    <div style="position: relative; height: 200px; width: 100%;">
+                        <canvas id="history-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="section-header">
+                    <h2>Assets</h2>
+                    <button class="text-btn js-view-assets">See All</button>
+                </div>
+
+                <div id="assets-preview" class="horizontal-scroll">
+                    <!-- Asset cards injected here -->
+                    <div class="skeleton-card"></div>
+                    <div class="skeleton-card"></div>
+                </div>
+
+                <div class="section-header">
+                    <h2>Recent Moves</h2>
+                </div>
+
+                <div id="recent-transactions" class="list-group">
+                    <!-- Transactions injected here -->
+                    <div class="skeleton-row"></div>
+                    <div class="skeleton-row"></div>
+                </div>
+            </section>
+
+            <!-- Other views will be injected or toggled here -->
+        </main>
+
+        <button id="fab-add" class="fab" aria-label="Add Transaction">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        </button>
+
+        <!-- Modals -->
+        <div id="modal-container" class="modal-backdrop hidden">
+            <div class="modal glass-panel">
+                <div class="modal-header">
+                    <h3>Add Item</h3>
+                    <button id="close-modal" class="icon-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="tab-transaction">Transaction</button>
+                    <button class="tab-btn" data-tab="tab-asset">New Asset</button>
+                </div>
+
+                <div class="tab-content" id="tab-transaction">
+                    <form id="form-transaction">
+                        <div class="form-group" id="group-asset">
+                            <label for="tx-asset">Asset</label>
+                            <select id="tx-asset" required>
+                                <option value="" disabled selected>Select an asset</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+
+                        <div class="form-group hidden" id="group-from-asset">
+                            <label for="tx-from-asset">From Asset</label>
+                            <select id="tx-from-asset">
+                                <option value="" disabled selected>Select hidden asset (From)</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Type</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="tx-type" value="buy" checked>
+                                    <span>Buy</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="tx-type" value="sell">
+                                    <span>Sell</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="tx-type" value="move">
+                                    <span>Move</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="tx-type" value="update">
+                                    <span>Value</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="tx-amount">Amount (<span id="currency-symbol">€</span>)</label>
+                            <input type="number" id="tx-amount" step="0.01" placeholder="0.00" required>
+                        </div>
+
+                        <div class="form-group hidden" id="group-quantity">
+                            <label for="tx-quantity">Quantity</label>
+                            <input type="number" id="tx-quantity" step="0.0001" placeholder="0">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="tx-date">Date</label>
+                            <input type="date" id="tx-date" required>
+                        </div>
+
+                        <button type="submit" class="btn-primary">Save Transaction</button>
+                    </form>
+                </div>
+
+                <div class="tab-content hidden" id="tab-asset">
+                    <form id="form-asset">
+                        <div class="form-group">
+                            <label for="asset-name">Asset Name</label>
+                            <input type="text" id="asset-name" placeholder="e.g. Apple Stock, Bitcoin" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="asset-category">Category</label>
+                            <select id="asset-category" required>
+                                <option value="Stocks">Stocks</option>
+                                <option value="Funds">Funds / ETF</option>
+                                <option value="Crypto">Crypto</option>
+                                <option value="Real Estate">Real Estate</option>
+                                <option value="Debt">Debt / Liability</option>
+                                <option value="Cash">Cash</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="asset-initial-value">Initial Value / Amount (Optional)</label>
+                            <input type="number" id="asset-initial-value" step="0.01" placeholder="0.00">
+                            <p class="help-text">Creates an initial 'Buy' transaction.</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="asset-quantity">Initial Quantity (Optional)</label>
+                            <input type="number" id="asset-quantity" step="0.0001" placeholder="0">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="asset-date">Date</label>
+                            <input type="date" id="asset-date">
+                        </div>
+
+                        <button type="submit" class="btn-primary">Create Asset</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="modal-settings" class="modal-backdrop hidden">
+            <div class="modal glass-panel">
+                <div class="modal-header">
+                    <h3>Settings</h3>
+                    <button id="close-settings" class="icon-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="form-group">
+                    <label>Data Management</label>
+                    <p class="text-sm text-muted mb-4">Export your data to JSON for backup or transfer.</p>
+
+                    <button id="btn-export" class="btn-primary mb-4"
+                        style="background: var(--bg-surface-2); border: 1px solid var(--glass-border);">
+                        <span class="flex-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Export Data
+                        </span>
+                    </button>
+
+                    <button id="btn-import-trigger" class="btn-primary"
+                        style="background: var(--bg-surface-2); border: 1px solid var(--glass-border);">
+                        <span class="flex-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            Import Data
+                        </span>
+                    </button>
+                    <input type="file" id="file-import" accept=".json" class="hidden">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>
