@@ -93,7 +93,21 @@
                 </div>
             </section>
 
-            <!-- Other views will be injected or toggled here -->
+            <!-- Assets List View -->
+            <section id="assets-list-view" class="view hidden">
+                <div class="section-header" style="margin-top: 0;">
+                    <button class="icon-btn js-back-to-dashboard" aria-label="Go back">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="19" y1="12" x2="5" y2="12"></line>
+                            <polyline points="12 19 5 12 12 5"></polyline>
+                        </svg>
+                    </button>
+                    <h2>All Assets</h2>
+                    <div style="width: 40px;"></div>
+                </div>
+                <div id="all-assets-list" class="list-group"></div>
+            </section>
         </main>
 
         <button id="fab-add" class="fab" aria-label="Add Transaction">

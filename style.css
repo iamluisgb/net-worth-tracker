@@ -30,6 +30,24 @@
     --transition-bounce: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
+[data-theme="light"] {
+    --bg-body: #f1f5f9;
+    --bg-surface: #ffffff;
+    --bg-surface-2: #e2e8f0;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --glass-border: rgba(0, 0, 0, 0.08);
+    --glass-bg: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="light"] .net-worth-card .amount {
+    background: linear-gradient(to bottom right, #0f172a, #334155);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
 * {
     box-sizing: border-box;
     margin: 0;

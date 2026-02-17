@@ -59,6 +59,34 @@ const renderDashboard = (state) => {
         totalEl.textContent = formatCurrency(store.totalNetWorth);
     }
 
+    // Monthly trend
+    const trendEl = document.getElementById('trend-value');
+    const trendWrap = trendEl ? trendEl.closest('.trend') : null;
+    if (trendEl && trendWrap) {
+        const history = store.getHistory('all');
+        const monthAgo = new Date();
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        const monthAgoStr = monthAgo.toISOString().split('T')[0];
+
+        let prevTotal = 0;
+        for (let i = 0; i < history.labels.length; i++) {
+            if (history.labels[i] <= monthAgoStr) {
+                prevTotal = history.data[i];
+            }
+        }
+
+        const currTotal = store.totalNetWorth;
+        if (prevTotal === 0) {
+            trendEl.textContent = 'N/A';
+            trendWrap.className = 'trend';
+        } else {
+            const pct = ((currTotal - prevTotal) / Math.abs(prevTotal)) * 100;
+            const sign = pct >= 0 ? '+' : '';
+            trendEl.textContent = `${sign}${pct.toFixed(1)}%`;
+            trendWrap.className = `trend ${pct >= 0 ? 'positive' : 'negative'}`;
+        }
+    }
+
     // Render Recent Transactions
     const recentEl = document.getElementById('recent-transactions');
     if (recentEl) {
@@ -275,6 +303,34 @@ const setupEventListeners = () => {
     }
     if (fileImport) fileImport.addEventListener('change', handleImport);
 
+    // Theme toggle
+    const btnThemeToggle = document.getElementById('theme-toggle');
+    if (btnThemeToggle) {
+        btnThemeToggle.addEventListener('click', () => {
+            const current = document.documentElement.dataset.theme || 'dark';
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.dataset.theme = next;
+            store.state.settings.theme = next;
+            store.save();
+        });
+    }
+
+    // Assets list view
+    const btnViewAssets = document.querySelector('.js-view-assets');
+    if (btnViewAssets) {
+        btnViewAssets.addEventListener('click', () => {
+            document.getElementById('dashboard').classList.add('hidden');
+            document.getElementById('assets-list-view').classList.remove('hidden');
+            renderAllAssets(store.state);
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.js-back-to-dashboard')) {
+            document.getElementById('assets-list-view').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+        }
+    });
 
     // Tabs
     tabs.forEach(tab => {
@@ -532,6 +588,17 @@ const openEditTransactionModal = (id) => {
     if (btnSubmit) btnSubmit.textContent = 'Update Transaction';
 };
 
+const renderAllAssets = (state) => {
+    const container = document.getElementById('all-assets-list');
+    if (!container) return;
+    if (!state.assets.length) {
+        container.innerHTML = '<div class="empty-state">No assets yet.</div>';
+        return;
+    }
+    const sorted = [...state.assets].sort((a, b) => b.currentValue - a.currentValue);
+    container.innerHTML = sorted.map(renderAssetCard).join('');
+};
+
 const init = () => {
     console.log('Initializing App...');
     // Initial Render
@@ -556,6 +623,9 @@ const init = () => {
             updateChart(e.target.value);
         });
     }
+
+    // Apply saved theme
+    document.documentElement.dataset.theme = store.state.settings.theme || 'dark';
 
     console.log('App Initialized');
 };
