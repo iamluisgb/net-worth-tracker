@@ -57,6 +57,152 @@ const fetchFxRate = async (from, to = 'EUR') => {
     return _fxCache[key];
 };
 
+// --- Phase 4: Price Auto-Update ---
+
+const deriveSource = (category) => {
+    if (category === 'Crypto') return 'coingecko';
+    if (category === 'Stocks' || category === 'Funds') return 'alphavantage';
+    return '';
+};
+
+const updateTickerVisibility = () => {
+    const category = document.getElementById('asset-category')?.value || '';
+    const group = document.getElementById('group-ticker');
+    const hint = document.getElementById('ticker-hint');
+    if (!group) return;
+    const source = deriveSource(category);
+    if (source) {
+        group.classList.remove('hidden');
+        if (hint) hint.textContent = source === 'coingecko'
+            ? '— e.g. bitcoin, ethereum, solana'
+            : '— e.g. AAPL, MSFT, SWDA.LON';
+    } else {
+        group.classList.add('hidden');
+        if (hint) hint.textContent = '';
+    }
+};
+
+const fetchPrices = async () => {
+    const btn = document.getElementById('btn-refresh-prices');
+    const icon = document.getElementById('refresh-icon');
+    if (icon) icon.classList.add('spinning');
+    if (btn) btn.disabled = true;
+
+    const assets = store.state.assets;
+    let updated = 0;
+    let failed = 0;
+    const today = new Date().toISOString().split('T')[0];
+
+    try {
+        // --- CoinGecko (Crypto) ---
+        const cryptoAssets = assets.filter(a => a.tickerSource === 'coingecko' && a.ticker && Number(a.quantity) > 0);
+        if (cryptoAssets.length > 0) {
+            const ids = cryptoAssets.map(a => a.ticker).join(',');
+            try {
+                const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=eur`);
+                const data = await res.json();
+                for (const asset of cryptoAssets) {
+                    const priceEur = data[asset.ticker]?.eur;
+                    if (priceEur != null) {
+                        store.addTransaction({
+                            assetId: asset.id, type: 'update', date: today,
+                            amount: priceEur * Number(asset.quantity), notes: 'Auto price update'
+                        });
+                        updated++;
+                    } else {
+                        failed++;
+                    }
+                }
+            } catch {
+                failed += cryptoAssets.length;
+            }
+        }
+
+        // --- Alpha Vantage (Stocks/Funds) ---
+        const stockAssets = assets.filter(a => a.tickerSource === 'alphavantage' && a.ticker && Number(a.quantity) > 0);
+        if (stockAssets.length > 0) {
+            const avKey = store.state.settings.alphaVantageKey;
+            if (!avKey) {
+                showToast('Add an Alpha Vantage API key in Settings to update stocks');
+            } else {
+                const usdEur = await fetchFxRate('USD', 'EUR');
+                for (let i = 0; i < stockAssets.length; i++) {
+                    if (i > 0) await new Promise(r => setTimeout(r, 12000)); // 5 req/min limit
+                    const asset = stockAssets[i];
+                    try {
+                        const res = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(asset.ticker)}&apikey=${avKey}`);
+                        const data = await res.json();
+                        const priceUsd = parseFloat(data['Global Quote']?.['05. price']);
+                        if (!isNaN(priceUsd)) {
+                            store.addTransaction({
+                                assetId: asset.id, type: 'update', date: today,
+                                amount: priceUsd * usdEur * Number(asset.quantity), notes: 'Auto price update'
+                            });
+                            updated++;
+                        } else {
+                            failed++;
+                        }
+                    } catch {
+                        failed++;
+                    }
+                }
+            }
+        }
+
+        const totalConfigured = cryptoAssets.length + stockAssets.length;
+        if (totalConfigured === 0) {
+            showToast('No assets configured for auto-update. Add tickers in asset settings.');
+        } else {
+            const parts = [];
+            if (updated > 0) parts.push(`Updated ${updated} asset${updated !== 1 ? 's' : ''}`);
+            if (failed > 0) parts.push(`${failed} failed`);
+            if (parts.length) showToast(parts.join(', '));
+        }
+
+        store.editSettings({ lastPriceUpdate: new Date().toISOString() });
+    } finally {
+        if (icon) icon.classList.remove('spinning');
+        if (btn) btn.disabled = false;
+    }
+};
+
+const renderTickerBulkList = () => {
+    const container = document.getElementById('ticker-bulk-list');
+    if (!container) return;
+    const eligible = store.state.assets.filter(a => deriveSource(a.category));
+    if (!eligible.length) {
+        container.innerHTML = '<p class="text-sm text-muted">No Stocks, Funds or Crypto assets yet.</p>';
+        return;
+    }
+    container.innerHTML = eligible.map(a => `
+        <div class="ticker-bulk-row">
+            <span class="ticker-name" title="${a.name}">${a.name}</span>
+            <span class="ticker-bulk-badge">${a.category === 'Crypto' ? 'CoinGecko' : 'AV'}</span>
+            <input type="text" data-asset-id="${a.id}" data-category="${a.category}"
+                value="${a.ticker || ''}" placeholder="${a.category === 'Crypto' ? 'bitcoin' : 'AAPL'}">
+        </div>`).join('');
+};
+
+const saveAllTickers = () => {
+    const rows = document.querySelectorAll('#ticker-bulk-list input[data-asset-id]');
+    rows.forEach(input => {
+        const id = input.dataset.assetId;
+        const category = input.dataset.category;
+        const ticker = input.value.trim();
+        const tickerSource = ticker ? deriveSource(category) : '';
+        store.editAsset(id, { ticker, tickerSource });
+    });
+    const statusEl = document.getElementById('ticker-bulk-status');
+    if (statusEl) statusEl.textContent = `Saved ${rows.length} ticker${rows.length !== 1 ? 's' : ''}.`;
+};
+
+const scheduleAutoRefresh = () => {
+    const lastUpdate = store.state.settings?.lastPriceUpdate;
+    if (!lastUpdate) return;
+    const daysSince = (Date.now() - new Date(lastUpdate).getTime()) / 86400000;
+    if (daysSince >= 7) fetchPrices();
+};
+
 // --- Rendering Helpers ---
 
 const renderTransactionItem = (tx, asset) => {
@@ -303,6 +449,7 @@ const openModal = () => {
     } else {
         switchTab('tab-transaction');
     }
+    updateTickerVisibility();
 };
 
 const closeModal = () => {
@@ -321,6 +468,7 @@ const closeModal = () => {
             const el = document.getElementById(fId);
             if (el) el.closest('.form-group').classList.remove('hidden');
         });
+        document.getElementById('group-ticker')?.classList.add('hidden');
         const btnSubmitAsset = formAsset.querySelector('button[type="submit"]');
         if (btnSubmitAsset) btnSubmitAsset.textContent = 'Create Asset';
     }
@@ -328,6 +476,13 @@ const closeModal = () => {
 
 const openSettings = () => {
     if (modalSettings) modalSettings.classList.remove('hidden');
+    const avKeyEl = document.getElementById('av-api-key');
+    if (avKeyEl) avKeyEl.value = store.state.settings?.alphaVantageKey || '';
+    const avStatusEl = document.getElementById('av-key-status');
+    if (avStatusEl) avStatusEl.textContent = '';
+    const bulkStatusEl = document.getElementById('ticker-bulk-status');
+    if (bulkStatusEl) bulkStatusEl.textContent = '';
+    renderTickerBulkList();
 };
 
 const closeSettings = () => {
@@ -616,6 +771,23 @@ const setupEventListeners = () => {
         applyFilters();
     });
 
+    // Refresh prices button
+    document.getElementById('btn-refresh-prices')?.addEventListener('click', fetchPrices);
+
+    // Save all tickers (bulk)
+    document.getElementById('btn-save-all-tickers')?.addEventListener('click', saveAllTickers);
+
+    // Save Alpha Vantage key
+    document.getElementById('btn-save-av-key')?.addEventListener('click', () => {
+        const key = document.getElementById('av-api-key')?.value.trim() || '';
+        store.editSettings({ alphaVantageKey: key });
+        const statusEl = document.getElementById('av-key-status');
+        if (statusEl) statusEl.textContent = key ? 'Key saved.' : 'Key cleared.';
+    });
+
+    // Ticker field visibility when category changes
+    document.getElementById('asset-category')?.addEventListener('change', updateTickerVisibility);
+
     // Confirm modal
     document.getElementById('confirm-cancel').addEventListener('click', closeConfirmModal);
     document.getElementById('confirm-ok').addEventListener('click', () => {
@@ -647,8 +819,11 @@ const setupEventListeners = () => {
             const category = document.getElementById('asset-category').value;
             const currency = document.getElementById('asset-currency')?.value || 'EUR';
 
+            const ticker = (document.getElementById('asset-ticker')?.value || '').trim();
+            const tickerSource = ticker ? deriveSource(category) : '';
+
             if (editingAssetId) {
-                store.editAsset(editingAssetId, { name, category, currency });
+                store.editAsset(editingAssetId, { name, category, currency, ticker, tickerSource });
                 if (!document.getElementById('assets-list-view').classList.contains('hidden')) {
                     renderAllAssets(store.state);
                 }
@@ -661,7 +836,7 @@ const setupEventListeners = () => {
             const dateInput = document.getElementById('asset-date');
             const date = dateInput && dateInput.value ? dateInput.value : new Date().toISOString();
 
-            const newAsset = store.addAsset({ name, category, currency, type: 'manual' });
+            const newAsset = store.addAsset({ name, category, currency, type: 'manual', ticker, tickerSource });
 
             if (initialValue > 0 || initialQuantity > 0) {
                 let amountEur = initialValue;
@@ -944,6 +1119,9 @@ const openEditAssetModal = (id) => {
     document.getElementById('asset-category').value = asset.category;
     const currEl = document.getElementById('asset-currency');
     if (currEl) currEl.value = asset.currency || 'EUR';
+    const tickerEl = document.getElementById('asset-ticker');
+    if (tickerEl) tickerEl.value = asset.ticker || '';
+    updateTickerVisibility();
     ['asset-initial-value', 'asset-quantity', 'asset-date'].forEach(fId => {
         const el = document.getElementById(fId);
         if (el) el.closest('.form-group').classList.add('hidden');
@@ -1340,6 +1518,9 @@ const init = () => {
 
     // Apply saved theme
     document.documentElement.dataset.theme = store.state.settings.theme || 'dark';
+
+    // Auto-refresh prices if ≥7 days since last update
+    scheduleAutoRefresh();
 
     console.log('App Initialized');
 };

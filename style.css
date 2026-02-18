@@ -747,6 +747,11 @@ select:focus {
 }
 .view-header h2, .view-header h3 { margin: 0; }
 
+/* ===== Price Refresh Button ===== */
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
 /* ===== Transaction Filter Bar ===== */
 .tx-filter-bar {
     display: flex;
@@ -758,4 +763,38 @@ select:focus {
 .tx-filter-bar input {
     flex: 1;
     min-width: 120px;
+}
+
+/* ===== Bulk Ticker Editor ===== */
+.ticker-bulk-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.ticker-bulk-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.ticker-bulk-row .ticker-name {
+    flex: 1;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-secondary);
+}
+.ticker-bulk-row input {
+    width: 120px;
+    flex-shrink: 0;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8rem;
+}
+.ticker-bulk-badge {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: var(--radius-full);
+    background: var(--bg-surface-2);
+    color: var(--text-muted);
+    flex-shrink: 0;
 }

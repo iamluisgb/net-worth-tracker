@@ -6,11 +6,13 @@
 const STORAGE_KEY = 'net_worth_tracker_v1';
 
 const defaultState = {
-    assets: [], // { id, name, type, category, quantity, currentValue }
+    assets: [], // { id, name, type, category, quantity, currentValue, ticker, tickerSource }
     transactions: [], // { id, assetId, type, date, amount, quantity, pricePerUnit }
     settings: {
         currency: 'EUR',
-        theme: 'dark'
+        theme: 'dark',
+        alphaVantageKey: '',
+        lastPriceUpdate: null
     }
 };
 
@@ -23,7 +25,13 @@ class Store {
     load() {
         try {
             const stored = localStorage.getItem(STORAGE_KEY);
-            return stored ? { ...defaultState, ...JSON.parse(stored) } : defaultState;
+            if (!stored) return defaultState;
+            const parsed = JSON.parse(stored);
+            return {
+                ...defaultState,
+                ...parsed,
+                settings: { ...defaultState.settings, ...parsed.settings }
+            };
         } catch (e) {
             console.error('Failed to load state', e);
             return defaultState;
@@ -296,6 +304,11 @@ class Store {
     deleteTransaction(id) {
         this.state.transactions = this.state.transactions.filter(t => t.id !== id);
         this.recalculateState();
+    }
+
+    editSettings(updates) {
+        this.state.settings = { ...this.state.settings, ...updates };
+        this.notify();
     }
 
     editAsset(id, updatedData) {

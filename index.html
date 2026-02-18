@@ -52,6 +52,15 @@
             <!-- Dashboard View -->
             <section id="dashboard" class="view active">
                 <div class="net-worth-card glass-panel">
+                    <button id="btn-refresh-prices" class="icon-btn"
+                        style="position: absolute; top: 0.75rem; right: 0.75rem; z-index: 2;"
+                        aria-label="Refresh asset prices" title="Refresh asset prices">
+                        <svg id="refresh-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                        </svg>
+                    </button>
                     <span class="label">Total Net Worth</span>
                     <h1 class="amount" id="total-net-worth">--</h1>
                     <div class="trend positive">
@@ -314,6 +323,11 @@
                             </select>
                         </div>
 
+                        <div class="form-group hidden" id="group-ticker">
+                            <label for="asset-ticker">Ticker <small id="ticker-hint" class="text-muted"></small></label>
+                            <input type="text" id="asset-ticker" placeholder="e.g. bitcoin, AAPL">
+                        </div>
+
                         <div class="form-group">
                             <label for="asset-initial-value">Initial Value / Amount (Optional)</label>
                             <input type="number" id="asset-initial-value" step="0.01" placeholder="0.00">
@@ -423,6 +437,33 @@
                             Restaurar desde Drive
                         </span>
                     </button>
+                </div>
+
+                <div class="form-group" style="margin-top: 1.5rem;">
+                    <label>Price Auto-Update</label>
+                    <p class="text-sm text-muted mb-4">
+                        Alpha Vantage API key for stocks &amp; funds.
+                        <a href="https://www.alphavantage.co/support/#api-key" target="_blank"
+                            rel="noopener noreferrer" style="color: var(--accent-primary);">Get a free key →</a>
+                    </p>
+                    <input type="text" id="av-api-key" placeholder="Paste your Alpha Vantage key"
+                        style="margin-bottom: 0.5rem;">
+                    <button id="btn-save-av-key" class="btn-primary"
+                        style="background: var(--bg-surface-2); border: 1px solid var(--glass-border);">
+                        Save Key
+                    </button>
+                    <div id="av-key-status" class="text-sm text-muted" style="margin-top: 0.5rem; text-align: center;"></div>
+                </div>
+
+                <div class="form-group" style="margin-top: 1.5rem;">
+                    <label>Asset Tickers</label>
+                    <p class="text-sm text-muted mb-4">Set tickers for all eligible assets at once.</p>
+                    <div id="ticker-bulk-list" class="ticker-bulk-list"></div>
+                    <button id="btn-save-all-tickers" class="btn-primary"
+                        style="margin-top: 0.75rem; background: var(--bg-surface-2); border: 1px solid var(--glass-border);">
+                        Save All Tickers
+                    </button>
+                    <div id="ticker-bulk-status" class="text-sm text-muted" style="margin-top: 0.5rem; text-align: center;"></div>
                 </div>
             </div>
         </div>
