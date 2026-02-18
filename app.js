@@ -447,12 +447,32 @@ const setupEventListeners = () => {
     document.getElementById('modal-share')?.addEventListener('click', (e) => {
         if (e.target === document.getElementById('modal-share')) closeShareModal();
     });
-    document.getElementById('btn-copy-share')?.addEventListener('click', () => {
+    document.getElementById('btn-copy-share')?.addEventListener('click', async () => {
+        const imageUrl = document.getElementById('modal-share').dataset.imageUrl;
         const text = document.getElementById('modal-share').dataset.shareText || '';
+        if (imageUrl && navigator.clipboard?.write) {
+            try {
+                const blob = await fetch(imageUrl).then(r => r.blob());
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                showToast('Image copied!');
+                return;
+            } catch {}
+        }
         navigator.clipboard.writeText(text).then(() => showToast('Copied!'));
     });
-    document.getElementById('btn-do-share')?.addEventListener('click', () => {
+    document.getElementById('btn-do-share')?.addEventListener('click', async () => {
+        const imageUrl = document.getElementById('modal-share').dataset.imageUrl;
         const text = document.getElementById('modal-share').dataset.shareText || '';
+        if (imageUrl && navigator.canShare) {
+            try {
+                const blob = await fetch(imageUrl).then(r => r.blob());
+                const file = new File([blob], 'portfolio.png', { type: 'image/png' });
+                if (navigator.canShare({ files: [file] })) {
+                    await navigator.share({ files: [file], title: 'My Portfolio', text });
+                    return;
+                }
+            } catch {}
+        }
         if (navigator.share) {
             navigator.share({ title: 'My Portfolio', text }).catch(() => {});
         } else {
@@ -881,6 +901,18 @@ const applyFilters = () => {
 // --- Share Modal ---
 
 const openShareModal = () => {
+    // Capture chart as image
+    const canvas = document.getElementById('category-chart');
+    const imageDataURL = canvas ? canvas.toDataURL('image/png') : null;
+
+    const previewEl = document.getElementById('share-preview');
+    if (previewEl) {
+        previewEl.innerHTML = imageDataURL
+            ? `<img src="${imageDataURL}" style="width: 100%; border-radius: var(--radius-md);">`
+            : '';
+    }
+
+    // Text breakdown (fallback for sharing)
     const visibleAssets = store.state.assets.filter(a => !hiddenCategories.has(a.category));
     const total = visibleAssets.filter(a => a.currentValue > 0)
         .reduce((sum, a) => sum + a.currentValue, 0);
@@ -896,16 +928,16 @@ const openShareModal = () => {
 
     const shareText = `My portfolio breakdown:\n${breakdown.map(b => `• ${b.cat}: ${b.pct.toFixed(1)}%`).join('\n')}`;
 
-    document.getElementById('share-content').innerHTML = breakdown.length
-        ? breakdown.map(b => `
-            <div class="flex-between mb-2">
-                <span class="text-sm">${b.cat}</span>
-                <span class="font-semibold" style="color: var(--accent-primary)">${b.pct.toFixed(1)}%</span>
-            </div>`).join('')
-        : '<p class="text-muted text-sm">No assets to share.</p>';
+    document.getElementById('share-content').innerHTML = breakdown.map(b => `
+        <div class="flex-between mb-2">
+            <span class="text-sm">${b.cat}</span>
+            <span class="font-semibold" style="color: var(--accent-primary)">${b.pct.toFixed(1)}%</span>
+        </div>`).join('');
 
-    document.getElementById('modal-share').dataset.shareText = shareText;
-    document.getElementById('modal-share').classList.remove('hidden');
+    const modalEl = document.getElementById('modal-share');
+    modalEl.dataset.shareText = shareText;
+    modalEl.dataset.imageUrl = imageDataURL || '';
+    modalEl.classList.remove('hidden');
 };
 
 const closeShareModal = () => document.getElementById('modal-share').classList.add('hidden');
