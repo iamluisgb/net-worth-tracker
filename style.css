@@ -724,3 +724,38 @@ select:focus {
 .drive-status:empty { display: none; }
 .drive-success { background: rgba(52, 199, 89, 0.1); color: var(--success); }
 .drive-error { background: rgba(255, 59, 48, 0.1); color: var(--danger); }
+
+/* ===== Performance Badge ===== */
+.perf-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-full);
+    margin-top: 0.25rem;
+}
+.perf-badge.positive { background: rgba(52, 199, 89, 0.15); color: var(--success); }
+.perf-badge.negative { background: rgba(248, 113, 113, 0.15); color: var(--danger); }
+
+/* ===== View Header (back button + title) ===== */
+.view-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-top: 0.25rem;
+}
+.view-header h2, .view-header h3 { margin: 0; }
+
+/* ===== Transaction Filter Bar ===== */
+.tx-filter-bar {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+.tx-filter-bar select,
+.tx-filter-bar input {
+    flex: 1;
+    min-width: 120px;
+}

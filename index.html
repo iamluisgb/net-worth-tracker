@@ -114,6 +114,7 @@
 
                 <div class="section-header">
                     <h2>Recent Moves</h2>
+                    <button class="text-btn js-view-transactions">See All →</button>
                 </div>
 
                 <div id="recent-transactions" class="list-group">
@@ -137,6 +138,61 @@
                     <div style="width: 40px;"></div>
                 </div>
                 <div id="all-assets-list" class="list-group"></div>
+            </section>
+
+            <!-- Transactions View -->
+            <section id="transactions-view" class="view hidden">
+                <div class="view-header">
+                    <button id="back-from-transactions" class="icon-btn" aria-label="Go back">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="19" y1="12" x2="5" y2="12"></line>
+                            <polyline points="12 19 5 12 12 5"></polyline>
+                        </svg>
+                    </button>
+                    <h2>All Moves</h2>
+                </div>
+                <div id="tx-filter-bar" class="tx-filter-bar">
+                    <select id="tx-filter-asset">
+                        <option value="">All Assets</option>
+                    </select>
+                    <select id="tx-filter-type">
+                        <option value="">All Types</option>
+                        <option value="buy">Buy</option>
+                        <option value="sell">Sell</option>
+                        <option value="update">Update</option>
+                        <option value="move">Move</option>
+                    </select>
+                    <input type="text" id="tx-filter-search" placeholder="Search notes…" />
+                </div>
+                <div id="all-transactions-list" class="list-group"></div>
+            </section>
+
+            <!-- Asset Detail View -->
+            <section id="asset-detail-view" class="view hidden">
+                <div class="view-header">
+                    <button id="back-from-detail" class="icon-btn" aria-label="Go back">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="19" y1="12" x2="5" y2="12"></line>
+                            <polyline points="12 19 5 12 12 5"></polyline>
+                        </svg>
+                    </button>
+                    <h2 id="detail-asset-name">Asset</h2>
+                </div>
+                <div class="glass-panel" style="padding: 1.25rem; margin-bottom: 1rem;">
+                    <div class="text-sm text-muted" id="detail-asset-category"></div>
+                    <div class="font-semibold" id="detail-asset-value" style="font-size: 1.75rem; margin: 0.5rem 0;"></div>
+                    <div id="detail-asset-perf"></div>
+                    <div class="text-sm text-muted" id="detail-asset-quantity" style="margin-top: 0.25rem;"></div>
+                </div>
+                <div class="glass-panel" style="padding: 1rem; margin-bottom: 1rem;">
+                    <div style="position: relative; height: 180px;">
+                        <canvas id="detail-chart"></canvas>
+                    </div>
+                </div>
+                <div class="section-header"><h3>Moves</h3></div>
+                <div id="detail-transactions-list" class="list-group"></div>
             </section>
         </main>
 
@@ -243,6 +299,18 @@
                                 <option value="Debt">Debt / Liability</option>
                                 <option value="Cash">Cash</option>
                                 <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="asset-currency">Currency</label>
+                            <select id="asset-currency">
+                                <option value="EUR">EUR €</option>
+                                <option value="USD">USD $</option>
+                                <option value="GBP">GBP £</option>
+                                <option value="CHF">CHF</option>
+                                <option value="JPY">JPY ¥</option>
+                                <option value="BTC">BTC ₿</option>
                             </select>
                         </div>
 

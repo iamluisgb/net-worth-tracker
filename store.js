@@ -352,6 +352,26 @@ class Store {
         return { labels: Array.from(timeline.keys()), data: Array.from(timeline.values()) };
     }
 
+    getAssetCostBasis(assetId) {
+        const txs = this.state.transactions.filter(t => t.assetId === assetId);
+        const invested = txs.filter(t => t.type === 'buy')
+            .reduce((sum, t) => sum + Number(t.amount), 0);
+        const received = txs.filter(t => t.type === 'sell')
+            .reduce((sum, t) => sum + Number(t.amount), 0);
+        return invested - received;
+    }
+
+    filterTransactions({ assetId = '', type = '', search = '' } = {}) {
+        return [...this.state.transactions]
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .filter(tx => {
+                if (assetId && tx.assetId !== assetId) return false;
+                if (type && tx.type !== type) return false;
+                if (search && !(tx.notes || '').toLowerCase().includes(search.toLowerCase())) return false;
+                return true;
+            });
+    }
+
     get validAssets() {
         return this.state.assets.filter(a => a.currentValue > 0 || a.quantity > 0);
     }

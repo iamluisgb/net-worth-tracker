@@ -40,6 +40,23 @@ const formatCurrency = (amount) => {
     }).format(amount);
 };
 
+// --- FX / Multi-currency ---
+
+const _fxCache = {};
+const fetchFxRate = async (from, to = 'EUR') => {
+    if (from === to) return 1;
+    const key = `${from}_${to}`;
+    if (_fxCache[key]) return _fxCache[key];
+    try {
+        const res = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=${to}`);
+        const data = await res.json();
+        _fxCache[key] = data.rates?.[to] || 1;
+    } catch {
+        _fxCache[key] = 1;
+    }
+    return _fxCache[key];
+};
+
 // --- Rendering Helpers ---
 
 const renderTransactionItem = (tx, asset) => {
@@ -69,29 +86,50 @@ const renderTransactionItem = (tx, asset) => {
     `;
 };
 
+const getPerformance = (asset) => {
+    const costBasis = store.getAssetCostBasis(asset.id);
+    if (costBasis <= 0) return null;
+    const gainLoss = asset.currentValue - costBasis;
+    const pct = (gainLoss / costBasis) * 100;
+    return { costBasis, gainLoss, pct };
+};
+
+const renderPerfBadge = (asset) => {
+    const perf = getPerformance(asset);
+    if (!perf) return '';
+    const cls = perf.pct >= 0 ? 'positive' : 'negative';
+    return `<div class="perf-badge ${cls}">${perf.pct >= 0 ? '+' : ''}${perf.pct.toFixed(1)}%</div>`;
+};
+
 const renderAssetCard = (asset) => {
     const color = asset.currentValue < 0 ? 'var(--danger)' : 'var(--accent-primary)';
+    const nativeCurrency = asset.currency && asset.currency !== 'EUR' && asset.quantity > 0
+        ? `<div class="text-sm text-muted mt-1">${asset.currency} · ${Number(asset.quantity).toLocaleString()} units</div>`
+        : asset.quantity > 0 ? `<div class="text-sm text-muted mt-1">${Number(asset.quantity).toLocaleString()} units</div>` : '';
     return `
-        <div class="glass-panel asset-card-mini">
+        <div class="glass-panel asset-card-mini" data-asset-id="${asset.id}" style="cursor: pointer;">
             <div class="text-sm text-muted mb-2">${asset.category}</div>
             <div class="font-semibold mb-1" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${asset.name}</div>
             <div class="font-medium" style="color: ${color}">${formatCurrency(asset.currentValue)}</div>
-            ${asset.quantity > 0 ? `<div class="text-sm text-muted mt-1">${Number(asset.quantity).toLocaleString()} units</div>` : ''}
+            ${nativeCurrency}
+            ${renderPerfBadge(asset)}
         </div>
     `;
 };
 
 const renderAssetListItem = (asset) => {
     const color = asset.currentValue < 0 ? 'var(--danger)' : 'var(--accent-primary)';
+    const perf = getPerformance(asset);
     return `
         <div class="glass-panel flex-between list-item">
-            <div style="flex: 1; min-width: 0;">
+            <div style="flex: 1; min-width: 0; cursor: pointer;" class="js-open-detail" data-asset-id="${asset.id}">
                 <div class="text-sm text-muted mb-2">${asset.category}</div>
                 <div class="font-semibold" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${asset.name}</div>
             </div>
             <div class="text-right mr-2">
                 <div class="font-medium" style="color: ${color}">${formatCurrency(asset.currentValue)}</div>
                 ${asset.quantity > 0 ? `<div class="text-sm text-muted">${Number(asset.quantity).toLocaleString()} u</div>` : ''}
+                ${perf ? `<div class="perf-badge ${perf.pct >= 0 ? 'positive' : 'negative'}" style="margin-top: 0.25rem;">${perf.pct >= 0 ? '+' : ''}${perf.pct.toFixed(1)}%</div>` : ''}
             </div>
             <div class="flex-row gap-2">
                 <button class="icon-btn js-edit-asset" data-id="${asset.id}" aria-label="Edit asset">
@@ -129,6 +167,13 @@ const showToast = (message, isError = false) => {
     t.textContent = message;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 3000);
+};
+
+// --- Navigation ---
+
+const showView = (viewId) => {
+    document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+    document.getElementById(viewId)?.classList.remove('hidden');
 };
 
 // --- UI Components ---
@@ -423,16 +468,69 @@ const setupEventListeners = () => {
     const btnViewAssets = document.querySelector('.js-view-assets');
     if (btnViewAssets) {
         btnViewAssets.addEventListener('click', () => {
-            document.getElementById('dashboard').classList.add('hidden');
-            document.getElementById('assets-list-view').classList.remove('hidden');
+            showView('assets-list-view');
             renderAllAssets(store.state);
         });
     }
 
+    // Transactions view
     document.addEventListener('click', (e) => {
-        if (e.target.closest('.js-back-to-dashboard')) {
-            document.getElementById('assets-list-view').classList.add('hidden');
-            document.getElementById('dashboard').classList.remove('hidden');
+        if (e.target.closest('.js-view-transactions')) {
+            populateTxFilterAsset();
+            renderAllTransactions();
+            showView('transactions-view');
+        }
+        if (e.target.closest('.js-back-to-dashboard') ||
+            e.target.closest('#back-from-transactions') ||
+            e.target.closest('#back-from-detail')) {
+            showView('dashboard');
+        }
+    });
+
+    // Transaction filter bar
+    ['tx-filter-asset', 'tx-filter-type'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', () => renderAllTransactions());
+    });
+    document.getElementById('tx-filter-search')?.addEventListener('input', () => renderAllTransactions());
+
+    // Asset detail — from dashboard cards
+    document.getElementById('assets-preview')?.addEventListener('click', (e) => {
+        const card = e.target.closest('[data-asset-id]');
+        if (card) openAssetDetail(card.dataset.assetId);
+    });
+
+    // Asset detail — from all-assets list (tap on name area)
+    document.getElementById('all-assets-list')?.addEventListener('click', (e) => {
+        const item = e.target.closest('.js-open-detail');
+        if (item) openAssetDetail(item.dataset.assetId);
+    });
+
+    // Asset detail — from all-transactions list
+    document.getElementById('all-transactions-list')?.addEventListener('click', (e) => {
+        const btnEdit = e.target.closest('.js-edit-tx');
+        const btnDelete = e.target.closest('.js-delete-tx');
+        if (btnEdit) openEditTransactionModal(btnEdit.dataset.id);
+        else if (btnDelete) {
+            const id = btnDelete.dataset.id;
+            openConfirmModal('Delete this transaction?', () => {
+                store.deleteTransaction(id);
+                renderAllTransactions();
+            });
+        }
+    });
+
+    // Asset detail — transaction list inside detail view
+    document.getElementById('detail-transactions-list')?.addEventListener('click', (e) => {
+        const btnEdit = e.target.closest('.js-edit-tx');
+        const btnDelete = e.target.closest('.js-delete-tx');
+        if (btnEdit) openEditTransactionModal(btnEdit.dataset.id);
+        else if (btnDelete) {
+            const id = btnDelete.dataset.id;
+            const tx = store.state.transactions.find(t => t.id === id);
+            openConfirmModal('Delete this transaction?', () => {
+                store.deleteTransaction(id);
+                if (tx) openAssetDetail(tx.assetId); // refresh detail
+            });
         }
     });
 
@@ -543,13 +641,14 @@ const setupEventListeners = () => {
 
     // Form: Create / Edit Asset
     if (formAsset) {
-        formAsset.addEventListener('submit', (e) => {
+        formAsset.addEventListener('submit', async (e) => {
             e.preventDefault();
             const name = document.getElementById('asset-name').value;
             const category = document.getElementById('asset-category').value;
+            const currency = document.getElementById('asset-currency')?.value || 'EUR';
 
             if (editingAssetId) {
-                store.editAsset(editingAssetId, { name, category });
+                store.editAsset(editingAssetId, { name, category, currency });
                 if (!document.getElementById('assets-list-view').classList.contains('hidden')) {
                     renderAllAssets(store.state);
                 }
@@ -557,22 +656,30 @@ const setupEventListeners = () => {
                 return;
             }
 
-            const initialValue = document.getElementById('asset-initial-value').value;
-            const initialQuantity = document.getElementById('asset-quantity').value;
+            const initialValue = parseFloat(document.getElementById('asset-initial-value').value) || 0;
+            const initialQuantity = parseFloat(document.getElementById('asset-quantity').value) || 0;
             const dateInput = document.getElementById('asset-date');
             const date = dateInput && dateInput.value ? dateInput.value : new Date().toISOString();
 
-            const newAsset = store.addAsset({ name, category, type: 'manual' });
+            const newAsset = store.addAsset({ name, category, currency, type: 'manual' });
 
-            if ((initialValue && parseFloat(initialValue) > 0) || (initialQuantity && parseFloat(initialQuantity) > 0)) {
+            if (initialValue > 0 || initialQuantity > 0) {
+                let amountEur = initialValue;
+                let txExtra = {};
+                if (currency !== 'EUR' && initialValue > 0) {
+                    const rate = await fetchFxRate(currency, 'EUR');
+                    amountEur = initialValue * rate;
+                    txExtra = { originalAmount: initialValue, originalCurrency: currency, fxRate: rate };
+                }
                 store.addTransaction({
                     assetId: newAsset.id,
                     type: 'buy',
-                    date: date,
-                    amount: parseFloat(initialValue) || 0,
-                    quantity: parseFloat(initialQuantity) || 0,
-                    currentTotalValue: parseFloat(initialValue),
-                    notes: 'Initial Balance'
+                    date,
+                    amount: amountEur,
+                    quantity: initialQuantity,
+                    currentTotalValue: amountEur,
+                    notes: 'Initial Balance',
+                    ...txExtra
                 });
             }
 
@@ -835,6 +942,8 @@ const openEditAssetModal = (id) => {
     switchTab('tab-asset');
     document.getElementById('asset-name').value = asset.name;
     document.getElementById('asset-category').value = asset.category;
+    const currEl = document.getElementById('asset-currency');
+    if (currEl) currEl.value = asset.currency || 'EUR';
     ['asset-initial-value', 'asset-quantity', 'asset-date'].forEach(fId => {
         const el = document.getElementById(fId);
         if (el) el.closest('.form-group').classList.add('hidden');
@@ -1063,6 +1172,100 @@ const renderAllAssets = (state) => {
     }
     const sorted = [...state.assets].sort((a, b) => b.currentValue - a.currentValue);
     container.innerHTML = sorted.map(renderAssetListItem).join('');
+};
+
+// --- Transactions View ---
+
+const populateTxFilterAsset = () => {
+    const sel = document.getElementById('tx-filter-asset');
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">All Assets</option>' +
+        store.state.assets.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+    if (current) sel.value = current;
+};
+
+const getTxFilters = () => ({
+    assetId: document.getElementById('tx-filter-asset')?.value || '',
+    type: document.getElementById('tx-filter-type')?.value || '',
+    search: document.getElementById('tx-filter-search')?.value || '',
+});
+
+const renderAllTransactions = () => {
+    const container = document.getElementById('all-transactions-list');
+    if (!container) return;
+    const txs = store.filterTransactions(getTxFilters());
+    container.innerHTML = txs.length
+        ? txs.map(tx => renderTransactionItem(tx, store.state.assets.find(a => a.id === tx.assetId))).join('')
+        : '<p class="text-muted text-sm" style="text-align:center;padding:2rem;">No transactions found.</p>';
+};
+
+// --- Asset Detail View ---
+
+let detailChart = null;
+
+const initDetailChart = (assetId) => {
+    const ctx = document.getElementById('detail-chart');
+    if (!ctx) return;
+    const history = store.getHistory(assetId);
+    if (detailChart) { detailChart.destroy(); detailChart = null; }
+    if (!history.labels.length) return;
+    detailChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: history.labels,
+            datasets: [{
+                data: history.data,
+                borderColor: '#38bdf8',
+                backgroundColor: 'rgba(56,189,248,0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 0,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (ctx) => formatCurrency(ctx.raw) } }
+            },
+            scales: { x: { display: false }, y: { display: false } }
+        }
+    });
+};
+
+const openAssetDetail = (assetId) => {
+    const asset = store.state.assets.find(a => a.id === assetId);
+    if (!asset) return;
+
+    document.getElementById('detail-asset-name').textContent = asset.name;
+    document.getElementById('detail-asset-category').textContent = asset.category;
+    document.getElementById('detail-asset-value').textContent = formatCurrency(asset.currentValue);
+
+    const qtyEl = document.getElementById('detail-asset-quantity');
+    qtyEl.textContent = asset.quantity > 0 ? `${Number(asset.quantity).toLocaleString()} units` : '';
+
+    const perfEl = document.getElementById('detail-asset-perf');
+    const perf = getPerformance(asset);
+    if (perf) {
+        const cls = perf.pct >= 0 ? 'positive' : 'negative';
+        perfEl.innerHTML = `
+            <span class="perf-badge ${cls}">${perf.pct >= 0 ? '+' : ''}${perf.pct.toFixed(1)}%</span>
+            <span class="text-sm text-muted" style="margin-left:0.4rem;">vs ${formatCurrency(perf.costBasis)} invested</span>`;
+    } else {
+        perfEl.innerHTML = '';
+    }
+
+    const txs = store.state.transactions
+        .filter(t => t.assetId === assetId)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+    document.getElementById('detail-transactions-list').innerHTML = txs.length
+        ? txs.map(tx => renderTransactionItem(tx, asset)).join('')
+        : '<p class="text-muted text-sm" style="text-align:center;padding:2rem;">No moves yet.</p>';
+
+    initDetailChart(assetId);
+    showView('asset-detail-view');
 };
 
 const init = () => {
