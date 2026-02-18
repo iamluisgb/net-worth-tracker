@@ -611,6 +611,7 @@ const setupEventListeners = () => {
 
 
             if (editingTransactionId) {
+                const existingTx = store.state.transactions.find(t => t.id === editingTransactionId);
                 store.editTransaction(editingTransactionId, {
                     assetId,
                     type,
@@ -618,7 +619,7 @@ const setupEventListeners = () => {
                     amount,
                     quantity,
                     fromAssetId,
-                    notes: ''
+                    notes: existingTx?.notes || ''
                 });
                 editingTransactionId = null; // Reset
             } else {

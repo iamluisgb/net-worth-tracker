@@ -281,10 +281,15 @@ class Store {
         const index = this.state.transactions.findIndex(t => t.id === id);
         if (index === -1) return;
 
-        // Merge updates
-        this.state.transactions[index] = { ...this.state.transactions[index], ...updatedData };
+        const existing = this.state.transactions[index];
+        const merged = { ...existing, ...updatedData };
 
-        // Full recalculation needed to ensure consistency
+        // Keep currentTotalValue in sync with amount so recalculateState uses the new value
+        if (existing.currentTotalValue !== undefined && updatedData.amount !== undefined) {
+            merged.currentTotalValue = updatedData.amount;
+        }
+
+        this.state.transactions[index] = merged;
         this.recalculateState();
     }
 
