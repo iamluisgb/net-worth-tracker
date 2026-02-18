@@ -50,6 +50,56 @@ const renderAssetCard = (asset) => {
     `;
 };
 
+const renderAssetListItem = (asset) => {
+    const color = asset.currentValue < 0 ? 'var(--danger)' : 'var(--accent-primary)';
+    return `
+        <div class="glass-panel flex-between list-item">
+            <div style="flex: 1; min-width: 0;">
+                <div class="text-sm text-muted mb-2">${asset.category}</div>
+                <div class="font-semibold" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${asset.name}</div>
+            </div>
+            <div class="text-right mr-2">
+                <div class="font-medium" style="color: ${color}">${formatCurrency(asset.currentValue)}</div>
+                ${asset.quantity > 0 ? `<div class="text-sm text-muted">${Number(asset.quantity).toLocaleString()} u</div>` : ''}
+            </div>
+            <div class="flex-row gap-2">
+                <button class="icon-btn js-edit-asset" data-id="${asset.id}" aria-label="Edit asset">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                </button>
+                <button class="icon-btn js-delete-asset" data-id="${asset.id}" aria-label="Delete asset" style="color: var(--danger);">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+            </div>
+        </div>
+    `;
+};
+
+// --- Validation Helpers ---
+
+const showFieldError = (inputEl, message) => {
+    inputEl.classList.add('input-error');
+    const existing = inputEl.parentElement.querySelector('.field-error');
+    if (existing) existing.remove();
+    const err = document.createElement('p');
+    err.className = 'field-error';
+    err.textContent = message;
+    inputEl.after(err);
+};
+
+const clearFieldErrors = (formEl) => {
+    formEl.querySelectorAll('.field-error').forEach(e => e.remove());
+    formEl.querySelectorAll('.input-error').forEach(e => e.classList.remove('input-error'));
+};
+
+const showToast = (message, isError = false) => {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.style.borderColor = isError ? 'var(--danger)' : 'var(--success)';
+    t.textContent = message;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+};
+
 // --- UI Components ---
 
 const renderDashboard = (state) => {
@@ -174,7 +224,16 @@ const closeModal = () => {
         if (btnSubmit) btnSubmit.textContent = 'Save Transaction';
     }
     editingTransactionId = null;
-    if (formAsset) formAsset.reset();
+    editingAssetId = null;
+    if (formAsset) {
+        formAsset.reset();
+        ['asset-initial-value', 'asset-quantity', 'asset-date'].forEach(fId => {
+            const el = document.getElementById(fId);
+            if (el) el.closest('.form-group').classList.remove('hidden');
+        });
+        const btnSubmitAsset = formAsset.querySelector('button[type="submit"]');
+        if (btnSubmitAsset) btnSubmitAsset.textContent = 'Create Asset';
+    }
 };
 
 const openSettings = () => {
@@ -206,10 +265,10 @@ const handleImport = (event) => {
     reader.onload = (e) => {
         const result = store.importData(e.target.result);
         if (result.success) {
-            alert('Data imported successfully!');
+            showToast('Data imported successfully!');
             closeSettings();
         } else {
-            alert('Import failed: ' + result.error);
+            showToast('Import failed: ' + result.error, true);
         }
     };
     reader.readAsText(file);
@@ -332,6 +391,49 @@ const setupEventListeners = () => {
         }
     });
 
+    // Transaction actions (delegated)
+    const recentEl = document.getElementById('recent-transactions');
+    if (recentEl) {
+        recentEl.addEventListener('click', (e) => {
+            const btnEdit = e.target.closest('.js-edit-tx');
+            const btnDelete = e.target.closest('.js-delete-tx');
+            if (btnEdit) {
+                openEditTransactionModal(btnEdit.dataset.id);
+            } else if (btnDelete) {
+                const id = btnDelete.dataset.id;
+                openConfirmModal('Delete this transaction?', () => store.deleteTransaction(id));
+            }
+        });
+    }
+
+    // Asset list actions (delegated)
+    const allAssetsList = document.getElementById('all-assets-list');
+    if (allAssetsList) {
+        allAssetsList.addEventListener('click', (e) => {
+            const btnEdit = e.target.closest('.js-edit-asset');
+            const btnDelete = e.target.closest('.js-delete-asset');
+            if (btnEdit) {
+                openEditAssetModal(btnEdit.dataset.id);
+            } else if (btnDelete) {
+                const id = btnDelete.dataset.id;
+                openConfirmModal('Delete this asset and all its transactions?', () => {
+                    store.deleteAsset(id);
+                    renderAllAssets(store.state);
+                });
+            }
+        });
+    }
+
+    // Confirm modal
+    document.getElementById('confirm-cancel').addEventListener('click', closeConfirmModal);
+    document.getElementById('confirm-ok').addEventListener('click', () => {
+        if (_confirmCallback) _confirmCallback();
+        closeConfirmModal();
+    });
+    document.getElementById('modal-confirm').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('modal-confirm')) closeConfirmModal();
+    });
+
     // Tabs
     tabs.forEach(tab => {
         tab.addEventListener('click', () => switchTab(tab.dataset.tab));
@@ -345,12 +447,22 @@ const setupEventListeners = () => {
         });
     });
 
-    // Form: Create Asset
+    // Form: Create / Edit Asset
     if (formAsset) {
         formAsset.addEventListener('submit', (e) => {
             e.preventDefault();
             const name = document.getElementById('asset-name').value;
             const category = document.getElementById('asset-category').value;
+
+            if (editingAssetId) {
+                store.editAsset(editingAssetId, { name, category });
+                if (!document.getElementById('assets-list-view').classList.contains('hidden')) {
+                    renderAllAssets(store.state);
+                }
+                closeModal();
+                return;
+            }
+
             const initialValue = document.getElementById('asset-initial-value').value;
             const initialQuantity = document.getElementById('asset-quantity').value;
             const dateInput = document.getElementById('asset-date');
@@ -365,7 +477,7 @@ const setupEventListeners = () => {
                     date: date,
                     amount: parseFloat(initialValue) || 0,
                     quantity: parseFloat(initialQuantity) || 0,
-                    currentTotalValue: parseFloat(initialValue), // Initial value is total value
+                    currentTotalValue: parseFloat(initialValue),
                     notes: 'Initial Balance'
                 });
             }
@@ -378,6 +490,7 @@ const setupEventListeners = () => {
     if (formTransaction) {
         formTransaction.addEventListener('submit', (e) => {
             e.preventDefault();
+            clearFieldErrors(formTransaction);
             const assetId = selectAsset.value;
             const type = document.querySelector('input[name="tx-type"]:checked').value;
             const amount = parseFloat(document.getElementById('tx-amount').value);
@@ -388,17 +501,17 @@ const setupEventListeners = () => {
             if (type === 'move') {
                 fromAssetId = document.getElementById('tx-from-asset').value;
                 if (!fromAssetId) {
-                    alert('Please select a source asset');
+                    showFieldError(document.getElementById('tx-from-asset'), 'Select a source asset');
                     return;
                 }
                 if (fromAssetId === assetId) {
-                    alert('Source and destination cannot be the same');
+                    showFieldError(document.getElementById('tx-asset'), 'Source and destination must be different');
                     return;
                 }
             }
 
             if (!assetId) {
-                alert('Please select an asset');
+                showFieldError(document.getElementById('tx-asset'), 'Please select an asset');
                 return;
             }
 
@@ -527,28 +640,41 @@ const populateChartFilter = () => {
 
     filterEl.innerHTML = options.join('');
     filterEl.value = current;
-    // Transaction Actions (Delegate)
-    const recentEl = document.getElementById('recent-transactions');
-    if (recentEl) {
-        recentEl.addEventListener('click', (e) => {
-            const btnEdit = e.target.closest('.js-edit-tx');
-            const btnDelete = e.target.closest('.js-delete-tx');
+};
 
-            if (btnEdit) {
-                const id = btnEdit.dataset.id;
-                openEditTransactionModal(id);
-            } else if (btnDelete) {
-                const id = btnDelete.dataset.id;
-                if (confirm('Delete this transaction?')) {
-                    store.deleteTransaction(id);
-                }
-            }
-        });
-    }
+// --- Confirm Modal ---
+let _confirmCallback = null;
+
+const openConfirmModal = (message, onConfirm) => {
+    document.getElementById('confirm-message').textContent = message;
+    _confirmCallback = onConfirm;
+    document.getElementById('modal-confirm').classList.remove('hidden');
+};
+
+const closeConfirmModal = () => {
+    document.getElementById('modal-confirm').classList.add('hidden');
+    _confirmCallback = null;
 };
 
 // --- Edit Logic ---
 let editingTransactionId = null;
+let editingAssetId = null;
+
+const openEditAssetModal = (id) => {
+    const asset = store.state.assets.find(a => a.id === id);
+    if (!asset) return;
+    editingAssetId = id;
+    openModal();
+    switchTab('tab-asset');
+    document.getElementById('asset-name').value = asset.name;
+    document.getElementById('asset-category').value = asset.category;
+    ['asset-initial-value', 'asset-quantity', 'asset-date'].forEach(fId => {
+        const el = document.getElementById(fId);
+        if (el) el.closest('.form-group').classList.add('hidden');
+    });
+    const btnSubmit = formAsset.querySelector('button[type="submit"]');
+    if (btnSubmit) btnSubmit.textContent = 'Update Asset';
+};
 
 const openEditTransactionModal = (id) => {
     const tx = store.state.transactions.find(t => t.id === id);
@@ -588,6 +714,71 @@ const openEditTransactionModal = (id) => {
     if (btnSubmit) btnSubmit.textContent = 'Update Transaction';
 };
 
+// --- Category Treemap ---
+const CATEGORY_COLORS = ['#38bdf8', '#818cf8', '#34d399', '#f59e0b', '#f87171', '#a78bfa', '#fb923c'];
+let categoryChart = null;
+
+const getCategoryData = () =>
+    Object.entries(
+        store.state.assets.filter(a => a.currentValue > 0).reduce((acc, a) => {
+            acc[a.category] = (acc[a.category] || 0) + a.currentValue;
+            return acc;
+        }, {})
+    ).map(([g, v]) => ({ g, v }));
+
+const initCategoryChart = () => {
+    const ctx = document.getElementById('category-chart');
+    if (!ctx) return;
+    const treeData = getCategoryData();
+    categoryChart = new Chart(ctx, {
+        type: 'treemap',
+        data: {
+            datasets: [{
+                tree: treeData,
+                key: 'v',
+                groups: ['g'],
+                borderWidth: 2,
+                borderColor: 'var(--bg-body)',
+                backgroundColor: (ctx) => {
+                    if (ctx.type !== 'data') return 'transparent';
+                    return CATEGORY_COLORS[ctx.dataIndex % CATEGORY_COLORS.length];
+                },
+                labels: {
+                    display: true,
+                    formatter: (ctx) => [ctx.raw._data.g, formatCurrency(ctx.raw.v)],
+                    color: 'rgba(255,255,255,0.9)',
+                    font: [
+                        { weight: '600', size: 12, family: "'Outfit', sans-serif" },
+                        { size: 11, family: "'Outfit', sans-serif" }
+                    ]
+                }
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: () => '',
+                        label: (ctx) => ` ${ctx.raw._data.g}: ${formatCurrency(ctx.raw.v)}`
+                    }
+                }
+            }
+        }
+    });
+    document.getElementById('category-chart-container').style.display = treeData.length ? '' : 'none';
+};
+
+const updateCategoryChart = () => {
+    if (!categoryChart) return;
+    const treeData = getCategoryData();
+    categoryChart.data.datasets[0].tree = treeData;
+    categoryChart.update();
+    document.getElementById('category-chart-container').style.display = treeData.length ? '' : 'none';
+};
+
 const renderAllAssets = (state) => {
     const container = document.getElementById('all-assets-list');
     if (!container) return;
@@ -596,7 +787,7 @@ const renderAllAssets = (state) => {
         return;
     }
     const sorted = [...state.assets].sort((a, b) => b.currentValue - a.currentValue);
-    container.innerHTML = sorted.map(renderAssetCard).join('');
+    container.innerHTML = sorted.map(renderAssetListItem).join('');
 };
 
 const init = () => {
@@ -605,6 +796,7 @@ const init = () => {
     renderDashboard(store.state);
     populateChartFilter();
     initChart();
+    initCategoryChart();
 
     // Subscribe to store updates
     store.subscribe((state) => {
@@ -612,6 +804,7 @@ const init = () => {
         populateChartFilter();
         const currentFilter = document.getElementById('chart-filter').value;
         updateChart(currentFilter);
+        updateCategoryChart();
     });
 
     setupEventListeners();

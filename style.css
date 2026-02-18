@@ -591,3 +591,40 @@ select:focus {
     background: var(--glass-highlight);
     transform: translateY(-2px);
 }
+
+/* Field Validation */
+.field-error {
+    font-size: 0.75rem;
+    color: var(--danger);
+    margin-top: 0.25rem;
+}
+
+.input-error {
+    border-color: var(--danger) !important;
+}
+
+/* Toast Notification */
+.toast {
+    position: fixed;
+    bottom: 5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-surface-2);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    padding: 0.75rem 1.25rem;
+    border-radius: var(--radius-full);
+    font-size: 0.875rem;
+    font-weight: 500;
+    z-index: 300;
+    white-space: nowrap;
+    pointer-events: none;
+    animation: fadeInOut 3s ease forwards;
+}
+
+@keyframes fadeInOut {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(8px); }
+    15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+    75%  { opacity: 1; }
+    100% { opacity: 0; }
+}
