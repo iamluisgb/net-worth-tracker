@@ -23,7 +23,10 @@
 <body>
     <div id="app">
         <header class="main-header">
-            <div class="logo">Purse</div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div class="logo">Purse</div>
+                <div class="sync-indicator" id="sync-indicator"></div>
+            </div>
             <div style="display: flex; gap: 0.5rem;">
                 <button id="btn-settings" class="icon-btn" aria-label="Settings">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -312,6 +315,47 @@
                     </button>
                     <input type="file" id="file-import" accept=".json" class="hidden">
                 </div>
+
+                <div class="form-group" style="margin-top: 1.5rem;">
+                    <label>Google Drive</label>
+                    <p class="text-sm text-muted mb-4">Copia de seguridad automática en tu Google Drive privado.</p>
+
+                    <div class="drive-sync-toggle">
+                        <div>
+                            <div style="font-weight: 500; font-size: 0.9rem;">Sincronización automática</div>
+                            <div class="text-sm text-muted" id="auto-sync-desc">Desactivada</div>
+                        </div>
+                        <button class="toggle-btn" id="btn-auto-sync"></button>
+                    </div>
+
+                    <div id="drive-status" class="drive-status"></div>
+
+                    <button id="btn-drive-backup" class="btn-primary mb-4"
+                        style="background: var(--bg-surface-2); border: 1px solid var(--glass-border);">
+                        <span class="flex-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <polyline points="23 4 23 10 17 10"/>
+                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                            </svg>
+                            Copia en Drive
+                        </span>
+                    </button>
+                    <button id="btn-drive-restore" class="btn-primary"
+                        style="background: var(--bg-surface-2); border: 1px solid var(--glass-border);">
+                        <span class="flex-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            Restaurar desde Drive
+                        </span>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -350,6 +394,7 @@
     </div>
 
     <script type="module" src="app.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </body>
 
 </html>

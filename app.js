@@ -1,7 +1,35 @@
 import { store } from './store.js';
+import {
+    initDrive, backupToDrive, restoreFromDrive,
+    silentBackup, syncOnLoad, onSyncStatus,
+    isSyncing, clearStoredToken
+} from './drive.js';
 
 // --- Filter State ---
 let hiddenCategories = new Set();
+
+// --- Drive Sync Helpers ---
+const AUTOSYNC_KEY = 'nwtAutoSync';
+const isAutoSync = () => localStorage.getItem(AUTOSYNC_KEY) === '1';
+
+function debounce(fn, ms) {
+    let t;
+    return Object.assign((...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); },
+        { flush: (...args) => { clearTimeout(t); fn(...args); } });
+}
+
+function updateDriveSyncUI() {
+    const btn = document.getElementById('btn-auto-sync');
+    const desc = document.getElementById('auto-sync-desc');
+    if (!btn) return;
+    if (isAutoSync()) {
+        btn.classList.add('active');
+        if (desc) desc.textContent = 'Activada — sincronizando con Drive';
+    } else {
+        btn.classList.remove('active');
+        if (desc) desc.textContent = 'Desactivada';
+    }
+}
 
 // --- Utils ---
 const formatCurrency = (amount) => {
@@ -608,6 +636,63 @@ const setupEventListeners = () => {
             closeModal();
         });
     }
+
+    // --- Google Drive Listeners ---
+    document.getElementById('btn-auto-sync')?.addEventListener('click', async () => {
+        if (isAutoSync()) {
+            localStorage.removeItem(AUTOSYNC_KEY);
+            clearStoredToken();
+            updateDriveSyncUI();
+            const statusEl = document.getElementById('drive-status');
+            if (statusEl) statusEl.textContent = '';
+            return;
+        }
+        const btn = document.getElementById('btn-auto-sync');
+        const statusEl = document.getElementById('drive-status');
+        btn.disabled = true;
+        if (statusEl) { statusEl.className = 'drive-status'; statusEl.textContent = 'Conectando con Google…'; }
+        try {
+            await backupToDrive(store.state);
+            localStorage.setItem(AUTOSYNC_KEY, '1');
+            updateDriveSyncUI();
+            if (statusEl) { statusEl.textContent = '✓ Sincronización activada'; statusEl.className = 'drive-status drive-success'; }
+        } catch {
+            if (statusEl) { statusEl.textContent = 'Error al conectar con Drive'; statusEl.className = 'drive-status drive-error'; }
+        } finally { btn.disabled = false; }
+    });
+
+    document.getElementById('btn-drive-backup')?.addEventListener('click', async () => {
+        const btn = document.getElementById('btn-drive-backup');
+        const statusEl = document.getElementById('drive-status');
+        btn.disabled = true;
+        try {
+            await backupToDrive(store.state);
+            if (statusEl) { statusEl.textContent = `Guardado en Drive (${new Date().toLocaleString('es')})`; statusEl.className = 'drive-status drive-success'; }
+        } catch {
+            if (statusEl) { statusEl.textContent = 'Error al guardar en Drive'; statusEl.className = 'drive-status drive-error'; }
+        } finally { btn.disabled = false; }
+    });
+
+    document.getElementById('btn-drive-restore')?.addEventListener('click', async () => {
+        const btn = document.getElementById('btn-drive-restore');
+        const statusEl = document.getElementById('drive-status');
+        btn.disabled = true;
+        try {
+            const result = await restoreFromDrive();
+            if (!result.success) {
+                if (statusEl) { statusEl.textContent = 'No hay copia de seguridad en Drive'; statusEl.className = 'drive-status drive-error'; }
+                return;
+            }
+            const confirmed = await showConfirm('¿Restaurar datos desde Drive? Se sobreescribirán los datos actuales.');
+            if (!confirmed) return;
+            store.state = { ...store.state, ...result.data };
+            store.save();
+            store.notify();
+            if (statusEl) { statusEl.textContent = `Restaurado (${new Date(result.modifiedTime).toLocaleString('es')})`; statusEl.className = 'drive-status drive-success'; }
+        } catch {
+            if (statusEl) { statusEl.textContent = 'Error al restaurar desde Drive'; statusEl.className = 'drive-status drive-error'; }
+        } finally { btn.disabled = false; }
+    });
 };
 
 // --- Charting ---
@@ -718,6 +803,12 @@ const populateChartFilter = () => {
 
 // --- Confirm Modal ---
 let _confirmCallback = null;
+let _confirmReject = null;
+
+const showConfirm = (message) => new Promise((resolve) => {
+    openConfirmModal(message, () => resolve(true));
+    _confirmReject = () => resolve(false);
+});
 
 const openConfirmModal = (message, onConfirm) => {
     document.getElementById('confirm-message').textContent = message;
@@ -727,6 +818,7 @@ const openConfirmModal = (message, onConfirm) => {
 
 const closeConfirmModal = () => {
     document.getElementById('modal-confirm').classList.add('hidden');
+    if (_confirmReject) { _confirmReject(); _confirmReject = null; }
     _confirmCallback = null;
 };
 
@@ -990,6 +1082,46 @@ const init = () => {
     });
 
     setupEventListeners();
+
+    // --- Google Drive Sync ---
+    const syncEl = document.getElementById('sync-indicator');
+    onSyncStatus(status => {
+        if (!syncEl) return;
+        syncEl.className = 'sync-indicator visible ' + status;
+        syncEl.textContent = status === 'syncing' ? '' : status === 'ok' ? '✓' : '✗';
+        if (status !== 'syncing') setTimeout(() => syncEl.classList.remove('visible'), 3000);
+    });
+
+    const debouncedBackup = debounce(() => silentBackup(store.state), 3000);
+    store.subscribe(() => { if (isAutoSync() && !isSyncing()) debouncedBackup(); });
+
+    const startDrive = () => {
+        initDrive();
+        if (isAutoSync()) syncOnLoad(store.state, (data) => {
+            store.state = { ...store.state, ...data };
+            store.save();
+        });
+    };
+    if (typeof google !== 'undefined' && google.accounts) {
+        startDrive();
+    } else {
+        const iv = setInterval(() => {
+            if (typeof google !== 'undefined' && google.accounts) {
+                clearInterval(iv);
+                startDrive();
+            }
+        }, 200);
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && isAutoSync()) {
+            debouncedBackup.flush();
+        } else if (document.visibilityState === 'visible' && isAutoSync() && !isSyncing()) {
+            syncOnLoad(store.state, (data) => { store.state = { ...store.state, ...data }; store.save(); });
+        }
+    });
+
+    updateDriveSyncUI();
 
     // Chart Filter Listener
     const chartFilter = document.getElementById('chart-filter');
