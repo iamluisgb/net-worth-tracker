@@ -628,3 +628,29 @@ select:focus {
     75%  { opacity: 1; }
     100% { opacity: 0; }
 }
+
+/* Category Filter Chips */
+.category-filter {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.category-chip {
+    padding: 0.35rem 0.85rem;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--glass-border);
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.category-chip.active {
+    background: var(--bg-surface-2);
+    color: var(--text-primary);
+    border-color: var(--accent-primary);
+}

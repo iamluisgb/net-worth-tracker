@@ -311,6 +311,42 @@ class Store {
         this.notify();
     }
 
+    getHistoryForAssets(assetIds) {
+        const idSet = new Set(assetIds);
+        const sortedTxs = [...this.state.transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const timeline = new Map();
+        const assetState = {};
+        this.state.assets.forEach(a => { assetState[a.id] = { quantity: 0, value: 0 }; });
+
+        sortedTxs.forEach(tx => {
+            const s = assetState[tx.assetId];
+            if (!s) return;
+            if (tx.type === 'buy') {
+                s.quantity += Number(tx.quantity || 0);
+                s.value = tx.currentTotalValue ? Number(tx.currentTotalValue) : s.value + Number(tx.amount);
+            } else if (tx.type === 'sell') {
+                s.quantity -= Number(tx.quantity || 0);
+                s.value = tx.currentTotalValue ? Number(tx.currentTotalValue) : s.value - Number(tx.amount);
+            } else if (tx.type === 'update') {
+                s.value = Number(tx.amount);
+            }
+            const dateStr = tx.date.split('T')[0];
+            const daily = this.state.assets
+                .filter(a => idSet.has(a.id))
+                .reduce((acc, a) => acc + (assetState[a.id]?.value || 0), 0);
+            timeline.set(dateStr, daily);
+        });
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (!timeline.has(todayStr)) {
+            const todayVal = this.state.assets
+                .filter(a => idSet.has(a.id))
+                .reduce((acc, a) => acc + (a.currentValue || 0), 0);
+            timeline.set(todayStr, todayVal);
+        }
+        return { labels: Array.from(timeline.keys()), data: Array.from(timeline.values()) };
+    }
+
     get validAssets() {
         return this.state.assets.filter(a => a.currentValue > 0 || a.quantity > 0);
     }

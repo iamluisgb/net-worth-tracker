@@ -1,5 +1,8 @@
 import { store } from './store.js';
 
+// --- Filter State ---
+let hiddenCategories = new Set();
+
 // --- Utils ---
 const formatCurrency = (amount) => {
     return new Intl.NumberFormat('es-ES', {
@@ -102,42 +105,48 @@ const showToast = (message, isError = false) => {
 
 // --- UI Components ---
 
+const updateTrendEl = (visibleAssets) => {
+    const trendEl = document.getElementById('trend-value');
+    const trendWrap = trendEl?.closest('.trend');
+    if (!trendEl || !trendWrap) return;
+
+    const visibleIds = visibleAssets.map(a => a.id);
+    const history = hiddenCategories.size === 0
+        ? store.getHistory('all')
+        : store.getHistoryForAssets(visibleIds);
+
+    const monthAgo = new Date();
+    monthAgo.setMonth(monthAgo.getMonth() - 1);
+    const monthAgoStr = monthAgo.toISOString().split('T')[0];
+
+    let prevTotal = 0;
+    for (let i = 0; i < history.labels.length; i++) {
+        if (history.labels[i] <= monthAgoStr) prevTotal = history.data[i];
+    }
+
+    const currTotal = visibleAssets.reduce((sum, a) => sum + (a.currentValue || 0), 0);
+    if (prevTotal === 0) {
+        trendEl.textContent = 'N/A';
+        trendWrap.className = 'trend';
+    } else {
+        const pct = ((currTotal - prevTotal) / Math.abs(prevTotal)) * 100;
+        trendEl.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
+        trendWrap.className = `trend ${pct >= 0 ? 'positive' : 'negative'}`;
+    }
+};
+
 const renderDashboard = (state) => {
+    const visibleAssets = state.assets.filter(a => !hiddenCategories.has(a.category));
+    const visibleTotal = visibleAssets.reduce((sum, a) => sum + (a.currentValue || 0), 0);
+
     // Net Worth
     const totalEl = document.getElementById('total-net-worth');
-    if (totalEl) {
-        totalEl.textContent = formatCurrency(store.totalNetWorth);
-    }
+    if (totalEl) totalEl.textContent = formatCurrency(visibleTotal);
 
     // Monthly trend
-    const trendEl = document.getElementById('trend-value');
-    const trendWrap = trendEl ? trendEl.closest('.trend') : null;
-    if (trendEl && trendWrap) {
-        const history = store.getHistory('all');
-        const monthAgo = new Date();
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
-        const monthAgoStr = monthAgo.toISOString().split('T')[0];
+    updateTrendEl(visibleAssets);
 
-        let prevTotal = 0;
-        for (let i = 0; i < history.labels.length; i++) {
-            if (history.labels[i] <= monthAgoStr) {
-                prevTotal = history.data[i];
-            }
-        }
-
-        const currTotal = store.totalNetWorth;
-        if (prevTotal === 0) {
-            trendEl.textContent = 'N/A';
-            trendWrap.className = 'trend';
-        } else {
-            const pct = ((currTotal - prevTotal) / Math.abs(prevTotal)) * 100;
-            const sign = pct >= 0 ? '+' : '';
-            trendEl.textContent = `${sign}${pct.toFixed(1)}%`;
-            trendWrap.className = `trend ${pct >= 0 ? 'positive' : 'negative'}`;
-        }
-    }
-
-    // Render Recent Transactions
+    // Render Recent Transactions — always unfiltered
     const recentEl = document.getElementById('recent-transactions');
     if (recentEl) {
         if (state.transactions.length > 0) {
@@ -150,11 +159,17 @@ const renderDashboard = (state) => {
         }
     }
 
-    // Render Assets Preview
+    // Render Assets Preview — filtered by hiddenCategories
     const assetsEl = document.getElementById('assets-preview');
     if (assetsEl) {
-        if (state.assets.length > 0) {
-            assetsEl.innerHTML = state.assets.map(renderAssetCard).join('');
+        if (visibleAssets.length > 0) {
+            assetsEl.innerHTML = visibleAssets.map(renderAssetCard).join('');
+        } else if (state.assets.length > 0) {
+            assetsEl.innerHTML = `
+                <div class="glass-panel asset-card-mini flex-center text-muted" style="min-width: 200px;">
+                    No visible assets
+                </div>
+            `;
         } else {
             assetsEl.innerHTML = `
                 <div class="glass-panel asset-card-mini flex-center text-muted" style="min-width: 200px;">
@@ -163,6 +178,8 @@ const renderDashboard = (state) => {
             `;
         }
     }
+
+    renderCategoryChips();
 };
 
 // --- Initialization ---
@@ -424,6 +441,35 @@ const setupEventListeners = () => {
         });
     }
 
+    // Share modal
+    document.getElementById('btn-share')?.addEventListener('click', openShareModal);
+    document.getElementById('close-share')?.addEventListener('click', closeShareModal);
+    document.getElementById('modal-share')?.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('modal-share')) closeShareModal();
+    });
+    document.getElementById('btn-copy-share')?.addEventListener('click', () => {
+        const text = document.getElementById('modal-share').dataset.shareText || '';
+        navigator.clipboard.writeText(text).then(() => showToast('Copied!'));
+    });
+    document.getElementById('btn-do-share')?.addEventListener('click', () => {
+        const text = document.getElementById('modal-share').dataset.shareText || '';
+        if (navigator.share) {
+            navigator.share({ title: 'My Portfolio', text }).catch(() => {});
+        } else {
+            navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!'));
+        }
+    });
+
+    // Category filter chips
+    document.getElementById('category-filter-chips').addEventListener('click', (e) => {
+        const chip = e.target.closest('.category-chip');
+        if (!chip) return;
+        const cat = chip.dataset.category;
+        if (hiddenCategories.has(cat)) hiddenCategories.delete(cat);
+        else hiddenCategories.add(cat);
+        applyFilters();
+    });
+
     // Confirm modal
     document.getElementById('confirm-cancel').addEventListener('click', closeConfirmModal);
     document.getElementById('confirm-ok').addEventListener('click', () => {
@@ -620,7 +666,15 @@ const initChart = () => {
 const updateChart = (filterId = 'all') => {
     if (!netWorthChart) return;
 
-    const history = store.getHistory(filterId);
+    let history;
+    if (filterId === 'all' && hiddenCategories.size > 0) {
+        const visibleIds = store.state.assets
+            .filter(a => !hiddenCategories.has(a.category))
+            .map(a => a.id);
+        history = store.getHistoryForAssets(visibleIds);
+    } else {
+        history = store.getHistory(filterId);
+    }
     netWorthChart.data.labels = history.labels;
     netWorthChart.data.datasets[0].data = history.data;
     netWorthChart.update();
@@ -718,18 +772,26 @@ const openEditTransactionModal = (id) => {
 const CATEGORY_COLORS = ['#38bdf8', '#818cf8', '#34d399', '#f59e0b', '#f87171', '#a78bfa', '#fb923c'];
 let categoryChart = null;
 
-const getCategoryData = () =>
-    Object.entries(
-        store.state.assets.filter(a => a.currentValue > 0).reduce((acc, a) => {
+const getTreemapData = (groupBy = 'category') => {
+    const visibleAssets = store.state.assets.filter(a =>
+        a.currentValue > 0 && !hiddenCategories.has(a.category)
+    );
+    if (groupBy === 'asset') {
+        return visibleAssets.map(a => ({ g: a.name, v: a.currentValue }));
+    }
+    return Object.entries(
+        visibleAssets.reduce((acc, a) => {
             acc[a.category] = (acc[a.category] || 0) + a.currentValue;
             return acc;
         }, {})
     ).map(([g, v]) => ({ g, v }));
+};
 
 const initCategoryChart = () => {
     const ctx = document.getElementById('category-chart');
     if (!ctx) return;
-    const treeData = getCategoryData();
+    const groupBy = document.getElementById('treemap-groupby')?.value || 'category';
+    const treeData = getTreemapData(groupBy);
     categoryChart = new Chart(ctx, {
         type: 'treemap',
         data: {
@@ -773,11 +835,80 @@ const initCategoryChart = () => {
 
 const updateCategoryChart = () => {
     if (!categoryChart) return;
-    const treeData = getCategoryData();
+    const groupBy = document.getElementById('treemap-groupby')?.value || 'category';
+    const treeData = getTreemapData(groupBy);
     categoryChart.data.datasets[0].tree = treeData;
     categoryChart.update();
     document.getElementById('category-chart-container').style.display = treeData.length ? '' : 'none';
 };
+
+// --- Category Filter Chips ---
+
+const renderCategoryChips = () => {
+    const container = document.getElementById('category-filter-chips');
+    if (!container) return;
+    const categories = [...new Set(store.state.assets.map(a => a.category))];
+    if (categories.length < 2) { container.innerHTML = ''; return; }
+    container.innerHTML = categories.map(cat => `
+        <button class="category-chip ${hiddenCategories.has(cat) ? '' : 'active'}" data-category="${cat}">
+            ${cat}
+        </button>
+    `).join('');
+};
+
+const applyFilters = () => {
+    const visibleAssets = store.state.assets.filter(a => !hiddenCategories.has(a.category));
+    const visibleTotal = visibleAssets.reduce((sum, a) => sum + (a.currentValue || 0), 0);
+
+    const totalEl = document.getElementById('total-net-worth');
+    if (totalEl) totalEl.textContent = formatCurrency(visibleTotal);
+
+    updateTrendEl(visibleAssets);
+
+    const assetsEl = document.getElementById('assets-preview');
+    if (assetsEl) {
+        assetsEl.innerHTML = visibleAssets.length
+            ? visibleAssets.map(renderAssetCard).join('')
+            : `<div class="glass-panel asset-card-mini flex-center text-muted" style="min-width: 200px;">No visible assets</div>`;
+    }
+
+    const currentFilter = document.getElementById('chart-filter').value;
+    updateChart(currentFilter);
+    updateCategoryChart();
+    renderCategoryChips();
+};
+
+// --- Share Modal ---
+
+const openShareModal = () => {
+    const visibleAssets = store.state.assets.filter(a => !hiddenCategories.has(a.category));
+    const total = visibleAssets.filter(a => a.currentValue > 0)
+        .reduce((sum, a) => sum + a.currentValue, 0);
+
+    const categories = {};
+    visibleAssets.filter(a => a.currentValue > 0).forEach(a => {
+        categories[a.category] = (categories[a.category] || 0) + a.currentValue;
+    });
+
+    const breakdown = Object.entries(categories)
+        .sort((a, b) => b[1] - a[1])
+        .map(([cat, val]) => ({ cat, pct: total > 0 ? (val / total * 100) : 0 }));
+
+    const shareText = `My portfolio breakdown:\n${breakdown.map(b => `• ${b.cat}: ${b.pct.toFixed(1)}%`).join('\n')}`;
+
+    document.getElementById('share-content').innerHTML = breakdown.length
+        ? breakdown.map(b => `
+            <div class="flex-between mb-2">
+                <span class="text-sm">${b.cat}</span>
+                <span class="font-semibold" style="color: var(--accent-primary)">${b.pct.toFixed(1)}%</span>
+            </div>`).join('')
+        : '<p class="text-muted text-sm">No assets to share.</p>';
+
+    document.getElementById('modal-share').dataset.shareText = shareText;
+    document.getElementById('modal-share').classList.remove('hidden');
+};
+
+const closeShareModal = () => document.getElementById('modal-share').classList.add('hidden');
 
 const renderAllAssets = (state) => {
     const container = document.getElementById('all-assets-list');
@@ -816,6 +947,9 @@ const init = () => {
             updateChart(e.target.value);
         });
     }
+
+    // Treemap groupby listener
+    document.getElementById('treemap-groupby')?.addEventListener('change', () => updateCategoryChart());
 
     // Apply saved theme
     document.documentElement.dataset.theme = store.state.settings.theme || 'dark';
