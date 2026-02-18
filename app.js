@@ -901,9 +901,28 @@ const applyFilters = () => {
 // --- Share Modal ---
 
 const openShareModal = () => {
-    // Capture chart as image
+    // Capture chart as image with percentage-only labels
     const canvas = document.getElementById('category-chart');
-    const imageDataURL = canvas ? canvas.toDataURL('image/png') : null;
+    let imageDataURL = null;
+
+    if (canvas && categoryChart) {
+        const dataset = categoryChart.data.datasets[0];
+        const total = (dataset.tree || []).reduce((sum, d) => sum + d.v, 0);
+
+        // Temporarily switch labels to percentages
+        const originalFormatter = dataset.labels.formatter;
+        dataset.labels = { ...dataset.labels, formatter: (ctx) => [
+            ctx.raw._data.g,
+            total > 0 ? `${(ctx.raw.v / total * 100).toFixed(1)}%` : '0%'
+        ]};
+        categoryChart.update('none');
+
+        imageDataURL = canvas.toDataURL('image/png');
+
+        // Restore original labels with currency amounts
+        dataset.labels = { ...dataset.labels, formatter: originalFormatter };
+        categoryChart.update('none');
+    }
 
     const previewEl = document.getElementById('share-preview');
     if (previewEl) {
