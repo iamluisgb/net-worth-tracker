@@ -65,6 +65,15 @@ const deriveSource = (category) => {
     return '';
 };
 
+const derivePriceCurrency = (ticker) => {
+    if (!ticker) return 'USD';
+    const t = ticker.toUpperCase();
+    if (t.endsWith('.LON')) return 'GBP';
+    if (t.endsWith('.AMS') || t.endsWith('.DEX') || t.endsWith('.PAR') ||
+        t.endsWith('.EPA') || t.endsWith('.EBR')) return 'EUR';
+    return 'USD';
+};
+
 const updateTickerVisibility = () => {
     const category = document.getElementById('asset-category')?.value || '';
     const group = document.getElementById('group-ticker');
@@ -125,18 +134,19 @@ const fetchPrices = async () => {
             if (!avKey) {
                 showToast('Add an Alpha Vantage API key in Settings to update stocks');
             } else {
-                const usdEur = await fetchFxRate('USD', 'EUR');
                 for (let i = 0; i < stockAssets.length; i++) {
                     if (i > 0) await new Promise(r => setTimeout(r, 12000)); // 5 req/min limit
                     const asset = stockAssets[i];
                     try {
                         const res = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(asset.ticker)}&apikey=${avKey}`);
                         const data = await res.json();
-                        const priceUsd = parseFloat(data['Global Quote']?.['05. price']);
-                        if (!isNaN(priceUsd)) {
+                        const price = parseFloat(data['Global Quote']?.['05. price']);
+                        if (!isNaN(price)) {
+                            const priceCurrency = derivePriceCurrency(asset.ticker);
+                            const fxRate = priceCurrency === 'EUR' ? 1 : await fetchFxRate(priceCurrency, 'EUR');
                             store.addTransaction({
                                 assetId: asset.id, type: 'update', date: today,
-                                amount: priceUsd * usdEur * Number(asset.quantity), notes: 'Auto price update'
+                                amount: price * fxRate * Number(asset.quantity), notes: 'Auto price update'
                             });
                             updated++;
                         } else {
@@ -181,6 +191,28 @@ const renderTickerBulkList = () => {
             <input type="text" data-asset-id="${a.id}" data-category="${a.category}"
                 value="${a.ticker || ''}" placeholder="${a.category === 'Crypto' ? 'bitcoin' : 'AAPL'}">
         </div>`).join('');
+};
+
+const applyTickerJson = () => {
+    const raw = document.getElementById('ticker-json-input')?.value || '';
+    const statusEl = document.getElementById('ticker-bulk-status');
+    let map;
+    try {
+        map = JSON.parse(raw);
+    } catch {
+        if (statusEl) statusEl.textContent = 'Invalid JSON.';
+        return;
+    }
+    let applied = 0;
+    store.state.assets.forEach(a => {
+        const ticker = (map[a.name] || '').trim();
+        if (ticker) {
+            store.editAsset(a.id, { ticker, tickerSource: deriveSource(a.category) });
+            applied++;
+        }
+    });
+    renderTickerBulkList();
+    if (statusEl) statusEl.textContent = `Applied ${applied} ticker${applied !== 1 ? 's' : ''}.`;
 };
 
 const saveAllTickers = () => {
@@ -776,6 +808,7 @@ const setupEventListeners = () => {
 
     // Save all tickers (bulk)
     document.getElementById('btn-save-all-tickers')?.addEventListener('click', saveAllTickers);
+    document.getElementById('btn-apply-ticker-json')?.addEventListener('click', applyTickerJson);
 
     // Save Alpha Vantage key
     document.getElementById('btn-save-av-key')?.addEventListener('click', () => {

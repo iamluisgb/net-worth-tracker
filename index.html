@@ -463,6 +463,16 @@
                         style="margin-top: 0.75rem; background: var(--bg-surface-2); border: 1px solid var(--glass-border);">
                         Save All Tickers
                     </button>
+                    <details style="margin-top: 1rem;">
+                        <summary class="text-sm text-muted" style="cursor: pointer;">Import from JSON</summary>
+                        <textarea id="ticker-json-input" rows="5"
+                            style="margin-top: 0.5rem; font-size: 0.75rem; font-family: monospace;"
+                            placeholder='{ "Apple Inc": "AAPL", "Microsoft Corp": "MSFT" }'></textarea>
+                        <button id="btn-apply-ticker-json" class="btn-primary"
+                            style="margin-top: 0.4rem; background: var(--bg-surface-2); border: 1px solid var(--glass-border);">
+                            Apply JSON
+                        </button>
+                    </details>
                     <div id="ticker-bulk-status" class="text-sm text-muted" style="margin-top: 0.5rem; text-align: center;"></div>
                 </div>
             </div>
