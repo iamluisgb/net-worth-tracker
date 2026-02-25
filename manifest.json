@@ -1,6 +1,6 @@
 {
-    "name": "Net Worth Tracker",
-    "short_name": "Purse",
+    "name": "My Worth Tracker",
+    "short_name": "My Worth",
     "start_url": "./index.html",
     "display": "standalone",
     "background_color": "#0f172a",

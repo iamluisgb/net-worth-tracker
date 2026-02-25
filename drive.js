@@ -2,7 +2,7 @@
 
 const CLIENT_ID = '146475241021-2sschmrutnqdeug5fo6onc772im94ltt.apps.googleusercontent.com';
 const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
-const BACKUP_FILENAME = 'net-worth-tracker-backup.json';
+const BACKUP_FILENAME = 'my-worth-tracker-backup.json';
 
 let tokenClient = null;
 let accessToken = null;

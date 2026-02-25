@@ -1,5 +1,5 @@
 /**
- * Simple Pub/Sub Store for Net Worth Tracker
+ * Simple Pub/Sub Store for My Worth Tracker
  * Handles localStorage persistence and state updates
  */
 
