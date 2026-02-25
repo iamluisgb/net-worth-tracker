@@ -29,6 +29,46 @@ const filterByRange = (labels, data, range) => {
     return { labels: labels.slice(idx), data: data.slice(idx) };
 };
 
+// --- Demo Portfolio Data ---
+const DEMO_DATA = {
+    settings: { currency: 'EUR', theme: 'dark', alphaVantageKey: '', lastPriceUpdate: null },
+    assets: [
+        { id: 'demo-aapl', name: 'Apple Inc', type: 'manual', category: 'Stocks', assetClass: 'Renta Variable', currency: 'EUR', ticker: 'AAPL', tickerSource: 'alphavantage', currentValue: 5200, quantity: 30 },
+        { id: 'demo-vwra', name: 'Vanguard FTSE All-World', type: 'manual', category: 'Funds', assetClass: 'Renta Variable', currency: 'EUR', ticker: 'VWRA.AMS', tickerSource: 'alphavantage', currentValue: 4350, quantity: 50 },
+        { id: 'demo-bond', name: 'Fondo Renta Fija EUR', type: 'manual', category: 'Funds', assetClass: 'Renta Fija', currency: 'EUR', ticker: '', tickerSource: '', currentValue: 5480, quantity: 0 },
+        { id: 'demo-btc', name: 'Bitcoin', type: 'manual', category: 'Crypto', assetClass: 'Alternativo', currency: 'EUR', ticker: 'bitcoin', tickerSource: 'coingecko', currentValue: 2800, quantity: 0.032 },
+        { id: 'demo-cash', name: 'Cuenta de Ahorro', type: 'manual', category: 'Cash', assetClass: 'Liquidez', currency: 'EUR', ticker: '', tickerSource: '', currentValue: 5200, quantity: 0 }
+    ],
+    transactions: [
+        // Apple — buy + annual updates
+        { id: 'demo-tx-01', assetId: 'demo-aapl', type: 'buy',    date: '2023-02-15', amount: 3500, quantity: 30, notes: 'Compra inicial' },
+        { id: 'demo-tx-02', assetId: 'demo-aapl', type: 'update', date: '2023-09-01', amount: 3900, quantity: 30, notes: '' },
+        { id: 'demo-tx-03', assetId: 'demo-aapl', type: 'update', date: '2024-06-01', amount: 4600, quantity: 30, notes: '' },
+        { id: 'demo-tx-04', assetId: 'demo-aapl', type: 'update', date: '2025-01-15', amount: 4950, quantity: 30, notes: '' },
+        { id: 'demo-tx-05', assetId: 'demo-aapl', type: 'update', date: '2026-02-01', amount: 5200, quantity: 30, notes: '' },
+        // Vanguard ETF
+        { id: 'demo-tx-06', assetId: 'demo-vwra', type: 'buy',    date: '2023-04-10', amount: 3000, quantity: 50, notes: 'Compra inicial' },
+        { id: 'demo-tx-07', assetId: 'demo-vwra', type: 'update', date: '2024-01-10', amount: 3450, quantity: 50, notes: '' },
+        { id: 'demo-tx-08', assetId: 'demo-vwra', type: 'update', date: '2025-01-10', amount: 3900, quantity: 50, notes: '' },
+        { id: 'demo-tx-09', assetId: 'demo-vwra', type: 'update', date: '2026-02-01', amount: 4350, quantity: 50, notes: '' },
+        // Bond fund
+        { id: 'demo-tx-10', assetId: 'demo-bond', type: 'buy',    date: '2023-01-05', amount: 5000, quantity: 0, notes: 'Aportación inicial' },
+        { id: 'demo-tx-11', assetId: 'demo-bond', type: 'update', date: '2024-01-05', amount: 5150, quantity: 0, notes: '' },
+        { id: 'demo-tx-12', assetId: 'demo-bond', type: 'update', date: '2025-01-05', amount: 5320, quantity: 0, notes: '' },
+        { id: 'demo-tx-13', assetId: 'demo-bond', type: 'update', date: '2026-02-01', amount: 5480, quantity: 0, notes: '' },
+        // Bitcoin
+        { id: 'demo-tx-14', assetId: 'demo-btc',  type: 'buy',    date: '2023-10-20', amount: 800,  quantity: 0.032, notes: 'Primera compra BTC' },
+        { id: 'demo-tx-15', assetId: 'demo-btc',  type: 'update', date: '2024-03-15', amount: 2200, quantity: 0.032, notes: '' },
+        { id: 'demo-tx-16', assetId: 'demo-btc',  type: 'update', date: '2025-01-10', amount: 1600, quantity: 0.032, notes: '' },
+        { id: 'demo-tx-17', assetId: 'demo-btc',  type: 'update', date: '2026-02-01', amount: 2800, quantity: 0.032, notes: '' },
+        // Savings
+        { id: 'demo-tx-18', assetId: 'demo-cash', type: 'buy',    date: '2023-01-01', amount: 5000, quantity: 0, notes: 'Saldo inicial' },
+        { id: 'demo-tx-19', assetId: 'demo-cash', type: 'update', date: '2024-01-01', amount: 5080, quantity: 0, notes: '' },
+        { id: 'demo-tx-20', assetId: 'demo-cash', type: 'update', date: '2025-01-01', amount: 5150, quantity: 0, notes: '' },
+        { id: 'demo-tx-21', assetId: 'demo-cash', type: 'update', date: '2026-02-01', amount: 5200, quantity: 0, notes: '' }
+    ]
+};
+
 // --- Drive Sync Helpers ---
 const AUTOSYNC_KEY = 'nwtAutoSync';
 const isAutoSync = () => localStorage.getItem(AUTOSYNC_KEY) === '1';
@@ -587,6 +627,37 @@ const closeQuickUpdate = () => {
     quickUpdateAssetId = null;
 };
 
+const openHelpModal  = () => document.getElementById('modal-help')?.classList.remove('hidden');
+const closeHelpModal = () => document.getElementById('modal-help')?.classList.add('hidden');
+
+const loadDemoData = () => {
+    const proceed = () => {
+        const result = store.importData(JSON.stringify(DEMO_DATA));
+        if (result.success) {
+            closeHelpModal();
+            showToast('Portfolio de ejemplo cargado');
+        } else {
+            showToast('Error al cargar demo', true);
+        }
+    };
+    if (store.state.assets.length > 0) {
+        openConfirmModal('¿Reemplazar tus datos actuales con el portfolio de ejemplo?', proceed);
+    } else {
+        proceed();
+    }
+};
+
+const clearAllData = () => {
+    openConfirmModal('¿Borrar todos los datos de la app? Esta acción no se puede deshacer.', () => {
+        store.importData(JSON.stringify({
+            assets: [],
+            transactions: [],
+            settings: store.state.settings
+        }));
+        showToast('Datos borrados');
+    });
+};
+
 const openSettings = () => {
     if (modalSettings) modalSettings.classList.remove('hidden');
     const avKeyEl = document.getElementById('av-api-key');
@@ -703,6 +774,15 @@ const setupEventListeners = () => {
             if (e.target === modal) closeModal();
         });
     }
+
+    // Help modal listeners
+    document.getElementById('btn-help')?.addEventListener('click', openHelpModal);
+    document.getElementById('close-help')?.addEventListener('click', closeHelpModal);
+    document.getElementById('modal-help')?.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('modal-help')) closeHelpModal();
+    });
+    document.getElementById('btn-load-demo')?.addEventListener('click', loadDemoData);
+    document.getElementById('btn-clear-data')?.addEventListener('click', clearAllData);
 
     // Settings Listeners
     if (btnSettings) btnSettings.addEventListener('click', openSettings);

@@ -29,6 +29,7 @@
                 <div class="sync-indicator" id="sync-indicator"></div>
             </div>
             <div style="display: flex; gap: 0.5rem;">
+                <button id="btn-help" class="icon-btn" aria-label="Guía de uso" style="font-weight:700; font-size:1.1rem; width:2rem; height:2rem;">?</button>
                 <button id="btn-settings" class="icon-btn" aria-label="Settings">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -374,6 +375,100 @@
         </div>
 
         <!-- Settings Modal -->
+        <!-- Help / Tutorial Modal -->
+        <div id="modal-help" class="modal-backdrop hidden">
+            <div class="modal glass-panel" style="max-height:85vh; overflow-y:auto;">
+                <div class="modal-header">
+                    <h3>Guía de uso</h3>
+                    <button id="close-help" class="icon-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Demo Banner -->
+                <div class="demo-cta">
+                    <div class="demo-cta-title">📊 Portfolio de ejemplo</div>
+                    <div class="demo-cta-desc">Carga un portfolio ficticio para explorar todas las funciones de la app con datos reales.</div>
+                    <button id="btn-load-demo" class="btn-primary" style="width:100%; margin-top:0.75rem;">
+                        Cargar datos de ejemplo
+                    </button>
+                    <div class="text-muted" style="font-size:0.72rem; margin-top:0.4rem; text-align:center;">
+                        ⚠ Reemplazará los datos actuales · Se puede borrar desde Ajustes
+                    </div>
+                </div>
+
+                <!-- Tutorial Accordion -->
+                <div class="help-accordion">
+                    <details class="help-section">
+                        <summary>¿Qué es My Worth Tracker?</summary>
+                        <div class="help-section-body">
+                            <p>My Worth Tracker te ayuda a conocer tu <strong>patrimonio neto</strong> en todo momento: la suma del valor de todo lo que tienes (acciones, fondos, cripto, ahorro…).</p>
+                            <ul>
+                                <li>Añade tus activos una sola vez</li>
+                                <li>Registra compras, ventas y actualizaciones de precio</li>
+                                <li>El dashboard muestra la evolución de tu patrimonio a lo largo del tiempo</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="help-section">
+                        <summary>Añadir un activo</summary>
+                        <div class="help-section-body">
+                            <p>Pulsa el botón <strong>+</strong> (abajo a la derecha) → pestaña <em>New Asset</em>.</p>
+                            <ul>
+                                <li><strong>Nombre:</strong> ej. "Apple Inc", "Piso Madrid", "Cuenta Corriente"</li>
+                                <li><strong>Category:</strong> Stocks, Funds, Crypto, Real Estate, Cash…</li>
+                                <li><strong>Asset Class:</strong> Renta Variable, Renta Fija, Liquidez o Alternativo</li>
+                                <li><strong>Initial Value:</strong> cuánto vale ahora mismo (o cuánto invertiste)</li>
+                            </ul>
+                            <p>Para acciones y fondos puedes añadir un <em>ticker</em> (ej. <code>AAPL</code>, <code>bitcoin</code>) para actualizar el precio automáticamente.</p>
+                        </div>
+                    </details>
+
+                    <details class="help-section">
+                        <summary>Registrar movimientos</summary>
+                        <div class="help-section-body">
+                            <p>Pulsa <strong>+</strong> → pestaña <em>Transaction</em>.</p>
+                            <ul>
+                                <li><strong>Buy:</strong> nueva compra o ingreso de dinero en un activo</li>
+                                <li><strong>Sell:</strong> venta o retirada de dinero</li>
+                                <li><strong>Update:</strong> actualiza el valor actual sin registrar un flujo de dinero (ideal para fondos, inmuebles, criptos…)</li>
+                            </ul>
+                            <p>Cada activo tiene un botón <strong>↻</strong> de actualización rápida para el caso más común.</p>
+                        </div>
+                    </details>
+
+                    <details class="help-section">
+                        <summary>Leer el dashboard</summary>
+                        <div class="help-section-body">
+                            <ul>
+                                <li><strong>Patrimonio total:</strong> suma de todos los activos visibles</li>
+                                <li><strong>History:</strong> evolución histórica · usa los botones 1M / 3M / 6M / YTD / 1Y / MAX para cambiar el período</li>
+                                <li><strong>Distribution:</strong> treemap con el peso de cada activo · agrupa por categoría, clase o activo individual</li>
+                                <li><strong>Chips de filtro:</strong> pulsa una categoría o clase de activo para excluirla del gráfico y del total</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="help-section">
+                        <summary>Actualización automática de precios</summary>
+                        <div class="help-section-body">
+                            <p>La app puede obtener precios en tiempo real para activos con ticker:</p>
+                            <ul>
+                                <li><strong>Cripto</strong> (bitcoin, ethereum…): gratis vía CoinGecko, sin configuración</li>
+                                <li><strong>Acciones y ETFs</strong>: necesita una API key gratuita de <em>Alpha Vantage</em> (alphavantage.co) → introdúcela en Ajustes</li>
+                            </ul>
+                            <p>Pulsa el botón <strong>↻ Actualizar precios</strong> en el dashboard para lanzar la actualización.</p>
+                        </div>
+                    </details>
+                </div>
+            </div>
+        </div>
+
         <div id="modal-settings" class="modal-backdrop hidden">
             <div class="modal glass-panel">
                 <div class="modal-header">
@@ -419,6 +514,10 @@
                         </span>
                     </button>
                     <input type="file" id="file-import" accept=".json" class="hidden">
+
+                    <button id="btn-clear-data" class="btn-primary" style="margin-top:0.75rem; background:transparent; border:1px solid var(--glass-border); color:var(--error, #f87171); width:100%;">
+                        Borrar todos los datos
+                    </button>
                 </div>
 
                 <div class="form-group" style="margin-top: 1.5rem;">

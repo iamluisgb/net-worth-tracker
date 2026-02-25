@@ -695,6 +695,65 @@ select:focus {
     border-color: var(--accent-primary);
 }
 
+/* Help Modal — Demo Banner */
+.demo-cta {
+    background: var(--bg-surface);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+}
+.demo-cta-title {
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+}
+.demo-cta-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+/* Help Modal — Tutorial Accordion */
+.help-accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.help-section {
+    border-bottom: 1px solid var(--glass-border);
+}
+.help-section summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 0.65rem 0;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+.help-section summary::-webkit-details-marker { display: none; }
+.help-section summary::after {
+    content: '+';
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+.help-section[open] summary::after { content: '−'; }
+.help-section-body {
+    padding: 0.5rem 0 0.9rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.65;
+}
+.help-section-body p { margin: 0 0 0.5rem; }
+.help-section-body ul {
+    padding-left: 1.2rem;
+    margin: 0.4rem 0;
+}
+.help-section-body li { margin-bottom: 0.3rem; }
+
 /* ===== Google Drive Sync ===== */
 @keyframes spin { to { transform: rotate(360deg); } }
 
