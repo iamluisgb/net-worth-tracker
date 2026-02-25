@@ -91,6 +91,17 @@ const updateTickerVisibility = () => {
     }
 };
 
+const upsertUpdate = (assetId, date, amount, notes = '') => {
+    const existing = store.state.transactions.find(
+        t => t.assetId === assetId && t.type === 'update' && t.date === date
+    );
+    if (existing) {
+        store.editTransaction(existing.id, { amount, notes });
+    } else {
+        store.addTransaction({ assetId, type: 'update', date, amount, notes });
+    }
+};
+
 const fetchPrices = async () => {
     const btn = document.getElementById('btn-refresh-prices');
     const icon = document.getElementById('refresh-icon');
@@ -113,10 +124,7 @@ const fetchPrices = async () => {
                 for (const asset of cryptoAssets) {
                     const priceEur = data[asset.ticker]?.eur;
                     if (priceEur != null) {
-                        store.addTransaction({
-                            assetId: asset.id, type: 'update', date: today,
-                            amount: priceEur * Number(asset.quantity), notes: 'Auto price update'
-                        });
+                        upsertUpdate(asset.id, today, priceEur * Number(asset.quantity), 'Auto price update');
                         updated++;
                     } else {
                         failed++;
@@ -144,10 +152,7 @@ const fetchPrices = async () => {
                         if (!isNaN(price)) {
                             const priceCurrency = derivePriceCurrency(asset.ticker);
                             const fxRate = priceCurrency === 'EUR' ? 1 : await fetchFxRate(priceCurrency, 'EUR');
-                            store.addTransaction({
-                                assetId: asset.id, type: 'update', date: today,
-                                amount: price * fxRate * Number(asset.quantity), notes: 'Auto price update'
-                            });
+                            upsertUpdate(asset.id, today, price * fxRate * Number(asset.quantity), 'Auto price update');
                             updated++;
                         } else {
                             failed++;
@@ -757,7 +762,7 @@ const setupEventListeners = () => {
         const amount = parseFloat(document.getElementById('quick-update-amount').value);
         const date = document.getElementById('quick-update-date').value;
         if (!quickUpdateAssetId || isNaN(amount) || !date) return;
-        store.addTransaction({ assetId: quickUpdateAssetId, type: 'update', date, amount, notes: 'Manual update' });
+        upsertUpdate(quickUpdateAssetId, date, amount, 'Manual update');
         closeQuickUpdate();
         showToast('Value updated');
     });
