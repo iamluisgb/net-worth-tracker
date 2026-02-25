@@ -1,5 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="128" fill="#0f172a"/>
-  <path d="M256 128V384M128 256H384" stroke="#38bdf8" stroke-width="64" stroke-linecap="round"/>
-  <circle cx="256" cy="256" r="128" stroke="#818cf8" stroke-width="32" stroke-opacity="0.5"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1e40af"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="area" x1="256" y1="120" x2="256" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
+
+  <!-- Area fill under chart line -->
+  <path d="M 80,375 C 120,355 145,310 175,305 C 205,300 230,340 256,333 C 290,325 330,215 360,195 C 385,178 415,128 432,120 L 432,420 L 80,420 Z" fill="url(#area)"/>
+
+  <!-- Chart line -->
+  <path d="M 80,375 C 120,355 145,310 175,305 C 205,300 230,340 256,333 C 290,325 330,215 360,195 C 385,178 415,128 432,120" stroke="white" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Current value dot -->
+  <circle cx="432" cy="120" r="22" fill="white"/>
 </svg>
