@@ -310,6 +310,9 @@ const renderAssetListItem = (asset) => {
                 ${perf ? `<div class="perf-badge ${perf.pct >= 0 ? 'positive' : 'negative'}" style="margin-top: 0.25rem;">${perf.pct >= 0 ? '+' : ''}${perf.pct.toFixed(1)}%</div>` : ''}
             </div>
             <div class="flex-row gap-2">
+                <button class="icon-btn js-quick-update" data-id="${asset.id}" aria-label="Update value" title="Quick update value" style="color: var(--accent-primary);">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+                </button>
                 <button class="icon-btn js-edit-asset" data-id="${asset.id}" aria-label="Edit asset">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                 </button>
@@ -506,6 +509,27 @@ const closeModal = () => {
     }
 };
 
+// --- Quick Update ---
+
+let quickUpdateAssetId = null;
+
+const openQuickUpdate = (assetId) => {
+    const asset = store.state.assets.find(a => a.id === assetId);
+    if (!asset) return;
+    quickUpdateAssetId = assetId;
+    document.getElementById('quick-update-title').textContent = asset.name;
+    document.getElementById('quick-update-current').textContent = `Current: ${formatCurrency(asset.currentValue)}`;
+    document.getElementById('quick-update-amount').value = '';
+    document.getElementById('quick-update-date').valueAsDate = new Date();
+    document.getElementById('quick-update-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('quick-update-amount').focus(), 100);
+};
+
+const closeQuickUpdate = () => {
+    document.getElementById('quick-update-modal').classList.add('hidden');
+    quickUpdateAssetId = null;
+};
+
 const openSettings = () => {
     if (modalSettings) modalSettings.classList.remove('hidden');
     const avKeyEl = document.getElementById('av-api-key');
@@ -688,8 +712,24 @@ const setupEventListeners = () => {
 
     // Asset detail — from all-assets list (tap on name area)
     document.getElementById('all-assets-list')?.addEventListener('click', (e) => {
+        const quickBtn = e.target.closest('.js-quick-update');
+        if (quickBtn) { openQuickUpdate(quickBtn.dataset.id); return; }
         const item = e.target.closest('.js-open-detail');
         if (item) openAssetDetail(item.dataset.assetId);
+    });
+
+    // Quick update modal
+    document.getElementById('close-quick-update')?.addEventListener('click', closeQuickUpdate);
+    document.getElementById('quick-update-modal')?.addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeQuickUpdate();
+    });
+    document.getElementById('btn-quick-update-save')?.addEventListener('click', () => {
+        const amount = parseFloat(document.getElementById('quick-update-amount').value);
+        const date = document.getElementById('quick-update-date').value;
+        if (!quickUpdateAssetId || isNaN(amount) || !date) return;
+        store.addTransaction({ assetId: quickUpdateAssetId, type: 'update', date, amount, notes: 'Manual update' });
+        closeQuickUpdate();
+        showToast('Value updated');
     });
 
     // Asset detail — from all-transactions list
