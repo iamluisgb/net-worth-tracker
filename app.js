@@ -397,6 +397,20 @@ const renderDashboard = (state) => {
     const totalEl = document.getElementById('total-net-worth');
     if (totalEl) totalEl.textContent = formatCurrency(visibleTotal);
 
+    // Portfolio gains summary
+    const gainsEl = document.getElementById('portfolio-gains');
+    if (gainsEl) {
+        const totalCostBasis = visibleAssets.reduce((sum, a) => sum + store.getAssetCostBasis(a.id), 0);
+        if (totalCostBasis > 0) {
+            const gain = visibleTotal - totalCostBasis;
+            const pct = (gain / totalCostBasis) * 100;
+            const color = gain >= 0 ? 'var(--success)' : 'var(--danger)';
+            gainsEl.innerHTML = `<span style="color: var(--text-muted);">Invested ${formatCurrency(totalCostBasis)}</span><span style="color:${color}; margin-left:0.5rem; font-weight:600;">${gain >= 0 ? '+' : ''}${formatCurrency(gain)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)</span>`;
+        } else {
+            gainsEl.innerHTML = '';
+        }
+    }
+
     // Monthly trend
     updateTrendEl(visibleAssets);
 
@@ -1421,8 +1435,33 @@ const renderAllAssets = (state) => {
         container.innerHTML = '<div class="empty-state">No assets yet.</div>';
         return;
     }
-    const sorted = [...state.assets].sort((a, b) => b.currentValue - a.currentValue);
-    container.innerHTML = sorted.map(renderAssetListItem).join('');
+
+    // Group by category
+    const categoryOrder = ['Stocks', 'Funds', 'Crypto', 'Real Estate', 'Cash', 'Debt', 'Other'];
+    const groups = {};
+    state.assets.forEach(a => {
+        const key = a.category || 'Other';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(a);
+    });
+    const sortedCategories = Object.keys(groups).sort((a, b) => {
+        const ia = categoryOrder.indexOf(a);
+        const ib = categoryOrder.indexOf(b);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+
+    let html = '';
+    sortedCategories.forEach((category, idx) => {
+        const assets = groups[category].sort((a, b) => b.currentValue - a.currentValue);
+        const subtotal = assets.reduce((sum, a) => sum + (a.currentValue || 0), 0);
+        html += `<div class="list-group-header" style="${idx > 0 ? 'margin-top:1rem;' : ''}">
+            <span>${category}</span>
+            <span>${formatCurrency(subtotal)}</span>
+        </div>`;
+        html += assets.map(renderAssetListItem).join('');
+    });
+
+    container.innerHTML = html;
 };
 
 // --- Transactions View ---
