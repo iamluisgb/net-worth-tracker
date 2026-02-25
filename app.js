@@ -264,6 +264,20 @@ const renderTransactionItem = (tx, asset) => {
     `;
 };
 
+const getLastUpdated = (assetId) => {
+    const txs = store.state.transactions.filter(t => t.assetId === assetId);
+    if (!txs.length) return null;
+    const latest = txs.reduce((best, t) => (t.date > best.date ? t : best), txs[0]);
+    const date = new Date(latest.date);
+    const today = new Date();
+    const diffDays = Math.floor((today - date) / 86400000);
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+};
+
 const getPerformance = (asset) => {
     const costBasis = store.getAssetCostBasis(asset.id);
     if (costBasis <= 0) return null;
@@ -298,11 +312,13 @@ const renderAssetCard = (asset) => {
 const renderAssetListItem = (asset) => {
     const color = asset.currentValue < 0 ? 'var(--danger)' : 'var(--accent-primary)';
     const perf = getPerformance(asset);
+    const lastUpd = getLastUpdated(asset.id);
     return `
         <div class="glass-panel flex-between list-item">
             <div style="flex: 1; min-width: 0; cursor: pointer;" class="js-open-detail" data-asset-id="${asset.id}">
                 <div class="text-sm text-muted mb-2">${asset.category}</div>
                 <div class="font-semibold" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${asset.name}</div>
+                ${lastUpd ? `<div style="font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem; opacity:0.7;">${lastUpd}</div>` : ''}
             </div>
             <div class="text-right mr-2">
                 <div class="font-medium" style="color: ${color}">${formatCurrency(asset.currentValue)}</div>
