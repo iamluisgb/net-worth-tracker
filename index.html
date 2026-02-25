@@ -73,12 +73,20 @@
                 <!-- Chart Section -->
                 <div class="glass-panel" style="padding: 1rem;">
                     <div class="chart-header"
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                         <h3 style="margin: 0;">History</h3>
                         <select id="chart-filter" style="width: auto; padding: 0.25rem 0.5rem; font-size: 0.8rem;">
                             <option value="all">All Assets</option>
                             <!-- Populated dynamically -->
                         </select>
+                    </div>
+                    <div class="date-range-btns">
+                        <button class="date-range-btn" data-range="1M">1M</button>
+                        <button class="date-range-btn" data-range="3M">3M</button>
+                        <button class="date-range-btn" data-range="6M">6M</button>
+                        <button class="date-range-btn" data-range="YTD">YTD</button>
+                        <button class="date-range-btn" data-range="1Y">1Y</button>
+                        <button class="date-range-btn active" data-range="MAX">MAX</button>
                     </div>
                     <div style="position: relative; height: 200px; width: 100%;">
                         <canvas id="history-chart"></canvas>
@@ -92,6 +100,7 @@
                         <div style="display: flex; gap: 0.5rem; align-items: center;">
                             <select id="treemap-groupby" style="width: auto; padding: 0.25rem 0.5rem; font-size: 0.8rem;">
                                 <option value="category">By Category</option>
+                                <option value="assetClass">By Asset Class</option>
                                 <option value="asset">By Asset</option>
                             </select>
                             <button id="btn-share" class="icon-btn" aria-label="Share Distribution">
@@ -110,6 +119,7 @@
                 </div>
 
                 <div id="category-filter-chips" class="category-filter"></div>
+                <div id="asset-class-filter-chips" class="category-filter"></div>
 
                 <div class="section-header">
                     <h2>Assets</h2>
@@ -309,6 +319,17 @@
                                 <option value="Debt">Debt / Liability</option>
                                 <option value="Cash">Cash</option>
                                 <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="asset-class">Asset Class</label>
+                            <select id="asset-class">
+                                <option value="">— None —</option>
+                                <option value="Renta Variable">Renta Variable</option>
+                                <option value="Renta Fija">Renta Fija</option>
+                                <option value="Liquidez">Liquidez</option>
+                                <option value="Alternativo">Alternativo</option>
                             </select>
                         </div>
 

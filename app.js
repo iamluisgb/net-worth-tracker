@@ -7,6 +7,27 @@ import {
 
 // --- Filter State ---
 let hiddenCategories = new Set();
+let hiddenAssetClasses = new Set();
+let selectedDateRange = 'MAX';
+
+// Trim history labels/data to the selected date range
+const filterByRange = (labels, data, range) => {
+    if (range === 'MAX' || !labels.length) return { labels, data };
+    const now = new Date();
+    const start = new Date(now);
+    switch (range) {
+        case '1M': start.setMonth(now.getMonth() - 1); break;
+        case '3M': start.setMonth(now.getMonth() - 3); break;
+        case '6M': start.setMonth(now.getMonth() - 6); break;
+        case 'YTD': start.setMonth(0); start.setDate(1); break;
+        case '1Y': start.setFullYear(now.getFullYear() - 1); break;
+    }
+    const startStr = start.toISOString().split('T')[0];
+    let idx = labels.findIndex(l => l >= startStr);
+    if (idx === -1) return { labels, data };
+    if (idx > 0) idx--; // one point before for visual continuity
+    return { labels: labels.slice(idx), data: data.slice(idx) };
+};
 
 // --- Drive Sync Helpers ---
 const AUTOSYNC_KEY = 'nwtAutoSync';
@@ -469,6 +490,7 @@ const renderDashboard = (state) => {
     }
 
     renderCategoryChips();
+    renderAssetClassChips();
 };
 
 // --- Initialization ---
@@ -878,6 +900,25 @@ const setupEventListeners = () => {
         applyFilters();
     });
 
+    // Asset class filter chips
+    document.getElementById('asset-class-filter-chips')?.addEventListener('click', (e) => {
+        const chip = e.target.closest('.category-chip[data-class]');
+        if (!chip) return;
+        const cls = chip.dataset.class;
+        if (hiddenAssetClasses.has(cls)) hiddenAssetClasses.delete(cls);
+        else hiddenAssetClasses.add(cls);
+        applyFilters();
+    });
+
+    // Date range buttons
+    document.querySelector('.date-range-btns')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('.date-range-btn');
+        if (!btn) return;
+        selectedDateRange = btn.dataset.range;
+        document.querySelectorAll('.date-range-btn').forEach(b => b.classList.toggle('active', b === btn));
+        updateChart(document.getElementById('chart-filter').value);
+    });
+
     // Refresh prices button
     document.getElementById('btn-refresh-prices')?.addEventListener('click', fetchPrices);
 
@@ -926,12 +967,13 @@ const setupEventListeners = () => {
             const name = document.getElementById('asset-name').value;
             const category = document.getElementById('asset-category').value;
             const currency = document.getElementById('asset-currency')?.value || 'EUR';
+            const assetClass = document.getElementById('asset-class')?.value || '';
 
             const ticker = (document.getElementById('asset-ticker')?.value || '').trim();
             const tickerSource = ticker ? deriveSource(category) : '';
 
             if (editingAssetId) {
-                store.editAsset(editingAssetId, { name, category, currency, ticker, tickerSource });
+                store.editAsset(editingAssetId, { name, category, currency, assetClass, ticker, tickerSource });
                 if (!document.getElementById('assets-list-view').classList.contains('hidden')) {
                     renderAllAssets(store.state);
                 }
@@ -944,7 +986,7 @@ const setupEventListeners = () => {
             const dateInput = document.getElementById('asset-date');
             const date = dateInput && dateInput.value ? dateInput.value : new Date().toISOString();
 
-            const newAsset = store.addAsset({ name, category, currency, type: 'manual', ticker, tickerSource });
+            const newAsset = store.addAsset({ name, category, currency, assetClass, type: 'manual', ticker, tickerSource });
 
             if (initialValue > 0 || initialQuantity > 0) {
                 let amountEur = initialValue;
@@ -1163,16 +1205,22 @@ const updateChart = (filterId = 'all') => {
     if (!netWorthChart) return;
 
     let history;
-    if (filterId === 'all' && hiddenCategories.size > 0) {
-        const visibleIds = store.state.assets
-            .filter(a => !hiddenCategories.has(a.category))
-            .map(a => a.id);
-        history = store.getHistoryForAssets(visibleIds);
+    if (filterId === 'all') {
+        const hasFilters = hiddenCategories.size > 0 || hiddenAssetClasses.size > 0;
+        if (hasFilters) {
+            let visibleAssets = store.state.assets.filter(a => !hiddenCategories.has(a.category));
+            if (hiddenAssetClasses.size > 0)
+                visibleAssets = visibleAssets.filter(a => !a.assetClass || !hiddenAssetClasses.has(a.assetClass));
+            history = store.getHistoryForAssets(visibleAssets.map(a => a.id));
+        } else {
+            history = store.getHistory('all');
+        }
     } else {
         history = store.getHistory(filterId);
     }
-    netWorthChart.data.labels = history.labels;
-    netWorthChart.data.datasets[0].data = history.data;
+    const ranged = filterByRange(history.labels, history.data, selectedDateRange);
+    netWorthChart.data.labels = ranged.labels;
+    netWorthChart.data.datasets[0].data = ranged.data;
     netWorthChart.update();
 };
 
@@ -1227,6 +1275,8 @@ const openEditAssetModal = (id) => {
     document.getElementById('asset-category').value = asset.category;
     const currEl = document.getElementById('asset-currency');
     if (currEl) currEl.value = asset.currency || 'EUR';
+    const classEl = document.getElementById('asset-class');
+    if (classEl) classEl.value = asset.assetClass || '';
     const tickerEl = document.getElementById('asset-ticker');
     if (tickerEl) tickerEl.value = asset.ticker || '';
     updateTickerVisibility();
@@ -1281,11 +1331,23 @@ const CATEGORY_COLORS = ['#38bdf8', '#818cf8', '#34d399', '#f59e0b', '#f87171', 
 let categoryChart = null;
 
 const getTreemapData = (groupBy = 'category') => {
-    const visibleAssets = store.state.assets.filter(a =>
+    let visibleAssets = store.state.assets.filter(a =>
         a.currentValue > 0 && !hiddenCategories.has(a.category)
     );
+    if (hiddenAssetClasses.size > 0)
+        visibleAssets = visibleAssets.filter(a => !a.assetClass || !hiddenAssetClasses.has(a.assetClass));
+
     if (groupBy === 'asset') {
         return visibleAssets.map(a => ({ g: a.name, v: a.currentValue }));
+    }
+    if (groupBy === 'assetClass') {
+        return Object.entries(
+            visibleAssets.reduce((acc, a) => {
+                const key = a.assetClass || 'Sin clase';
+                acc[key] = (acc[key] || 0) + a.currentValue;
+                return acc;
+            }, {})
+        ).map(([g, v]) => ({ g, v }));
     }
     return Object.entries(
         visibleAssets.reduce((acc, a) => {
@@ -1364,8 +1426,22 @@ const renderCategoryChips = () => {
     `).join('');
 };
 
+const renderAssetClassChips = () => {
+    const container = document.getElementById('asset-class-filter-chips');
+    if (!container) return;
+    const classes = [...new Set(store.state.assets.map(a => a.assetClass).filter(Boolean))];
+    if (classes.length < 2) { container.innerHTML = ''; return; }
+    container.innerHTML = classes.map(cls => `
+        <button class="category-chip ${hiddenAssetClasses.has(cls) ? '' : 'active'}" data-class="${cls}">
+            ${cls}
+        </button>
+    `).join('');
+};
+
 const applyFilters = () => {
-    const visibleAssets = store.state.assets.filter(a => !hiddenCategories.has(a.category));
+    let visibleAssets = store.state.assets.filter(a => !hiddenCategories.has(a.category));
+    if (hiddenAssetClasses.size > 0)
+        visibleAssets = visibleAssets.filter(a => !a.assetClass || !hiddenAssetClasses.has(a.assetClass));
     const visibleTotal = visibleAssets.reduce((sum, a) => sum + (a.currentValue || 0), 0);
 
     const totalEl = document.getElementById('total-net-worth');
@@ -1384,6 +1460,7 @@ const applyFilters = () => {
     updateChart(currentFilter);
     updateCategoryChart();
     renderCategoryChips();
+    renderAssetClassChips();
 };
 
 // --- Share Modal ---
