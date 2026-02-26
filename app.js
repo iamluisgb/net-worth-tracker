@@ -23,9 +23,8 @@ const filterByRange = (labels, data, range) => {
         case '1Y': start.setFullYear(now.getFullYear() - 1); break;
     }
     const startStr = start.toISOString().split('T')[0];
-    let idx = labels.findIndex(l => l >= startStr);
+    const idx = labels.findIndex(l => l >= startStr);
     if (idx === -1) return { labels, data };
-    if (idx > 0) idx--; // one point before for visual continuity
     return { labels: labels.slice(idx), data: data.slice(idx) };
 };
 
