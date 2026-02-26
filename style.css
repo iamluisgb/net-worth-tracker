@@ -642,12 +642,43 @@ select:focus {
     100% { opacity: 0; }
 }
 
+/* Filter Chips Wrapper */
+.filter-chips-wrapper {
+    background: var(--bg-surface);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
 /* Category Filter Chips */
 .category-filter {
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
-    margin-bottom: 1rem;
+    align-items: center;
+    padding: 0.3rem 0;
+}
+
+.category-filter:empty {
+    display: none;
+}
+
+.category-filter:not(:empty) + .category-filter:not(:empty) {
+    border-top: 1px solid var(--glass-border);
+}
+
+.filter-chips-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-right: 0.25rem;
 }
 
 .category-chip {

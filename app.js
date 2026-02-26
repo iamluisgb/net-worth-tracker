@@ -1499,11 +1499,13 @@ const renderCategoryChips = () => {
     if (!container) return;
     const categories = [...new Set(store.state.assets.map(a => a.category))];
     if (categories.length < 2) { container.innerHTML = ''; return; }
-    container.innerHTML = categories.map(cat => `
-        <button class="category-chip ${hiddenCategories.has(cat) ? '' : 'active'}" data-category="${cat}">
-            ${cat}
-        </button>
-    `).join('');
+    container.innerHTML =
+        `<span class="filter-chips-label">Categoría</span>` +
+        categories.map(cat => `
+            <button class="category-chip ${hiddenCategories.has(cat) ? '' : 'active'}" data-category="${cat}">
+                ${cat}
+            </button>
+        `).join('');
 };
 
 const renderAssetClassChips = () => {
@@ -1511,11 +1513,13 @@ const renderAssetClassChips = () => {
     if (!container) return;
     const classes = [...new Set(store.state.assets.map(a => a.assetClass).filter(Boolean))];
     if (classes.length < 2) { container.innerHTML = ''; return; }
-    container.innerHTML = classes.map(cls => `
-        <button class="category-chip ${hiddenAssetClasses.has(cls) ? '' : 'active'}" data-class="${cls}">
-            ${cls}
-        </button>
-    `).join('');
+    container.innerHTML =
+        `<span class="filter-chips-label">Clase</span>` +
+        classes.map(cls => `
+            <button class="category-chip ${hiddenAssetClasses.has(cls) ? '' : 'active'}" data-class="${cls}">
+                ${cls}
+            </button>
+        `).join('');
 };
 
 const applyFilters = () => {
