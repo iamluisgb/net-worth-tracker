@@ -1,0 +1,47 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Vanilla JavaScript PWA, ES modules, no build tooling.
+  Files: index.html, app.js, store.js, drive.js, sw.js, manifest.json, style.css.
+  Storage: localStorage via store.js; optional Google Drive backup/sync via drive.js.
+  Charts: Chart.js + chartjs-chart-treemap (loaded via CDN in index.html).
+  No package.json, no bundler, no test runner detected.
+
+strict_tdd: false
+
+testing:
+  strict_tdd: false
+  projects: []
+  note: >
+    No package.json, go.mod, pyproject.toml, Cargo.toml, or CI/test config
+    detected at the workspace root. No test runner, linter, type checker, or
+    formatter is configured. Zero in-scope projects were discovered, so
+    Strict TDD defaults to false per the no-runner fallback.
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Note that there is no automated test suite; manual verification steps are required
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Keep designs proportional to a vanilla JS single-page app; avoid introducing build tooling unless explicitly requested
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    guidelines:
+      - Follow existing code patterns in app.js, store.js, drive.js
+      - Do not introduce a build step or package manager unless explicitly requested
+    tdd: false
+    test_command: ""
+  verify:
+    test_command: ""
+    build_command: ""
+    coverage_threshold: 0
+    note: >
+      No automated test command exists. Verification must rely on manual
+      functional checks and structural readback until a test runner is added.
+  archive:
+    - Warn before merging destructive deltas

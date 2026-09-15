@@ -102,17 +102,27 @@ const formatCurrency = (amount) => {
 
 // --- FX / Multi-currency ---
 
+const fetchJson = async (url, timeoutMs) => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+        const res = await fetch(url, { signal: ctrl.signal });
+        return await res.json();
+    } finally {
+        clearTimeout(timer);
+    }
+};
+
 const _fxCache = {};
 const fetchFxRate = async (from, to = 'EUR') => {
     if (from === to) return 1;
     const key = `${from}_${to}`;
     if (_fxCache[key]) return _fxCache[key];
     try {
-        const res = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=${to}`);
-        const data = await res.json();
+        const data = await fetchJson(`https://api.frankfurter.app/latest?from=${from}&to=${to}`, 8000);
         _fxCache[key] = data.rates?.[to] || 1;
     } catch {
-        _fxCache[key] = 1;
+        return 1;
     }
     return _fxCache[key];
 };
@@ -179,8 +189,7 @@ const fetchPrices = async () => {
         if (cryptoAssets.length > 0) {
             const ids = cryptoAssets.map(a => a.ticker).join(',');
             try {
-                const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=eur`);
-                const data = await res.json();
+                const data = await fetchJson(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=eur`, 10000);
                 for (const asset of cryptoAssets) {
                     const priceEur = data[asset.ticker]?.eur;
                     if (priceEur != null) {
@@ -206,8 +215,7 @@ const fetchPrices = async () => {
                     if (i > 0) await new Promise(r => setTimeout(r, 12000)); // 5 req/min limit
                     const asset = stockAssets[i];
                     try {
-                        const res = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(asset.ticker)}&apikey=${avKey}`);
-                        const data = await res.json();
+                        const data = await fetchJson(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(asset.ticker)}&apikey=${avKey}`, 15000);
                         const price = parseFloat(data['Global Quote']?.['05. price']);
                         if (!isNaN(price)) {
                             const priceCurrency = derivePriceCurrency(asset.ticker);
@@ -234,7 +242,9 @@ const fetchPrices = async () => {
             if (parts.length) showToast(parts.join(', '));
         }
 
-        store.editSettings({ lastPriceUpdate: new Date().toISOString() });
+        if (updated > 0) {
+            store.editSettings({ lastPriceUpdate: new Date().toISOString() });
+        }
     } finally {
         if (icon) icon.classList.remove('spinning');
         if (btn) btn.disabled = false;

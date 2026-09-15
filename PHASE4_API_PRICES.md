@@ -1,6 +1,6 @@
 # Phase 4 — Auto Price Updates via Free APIs
 
-> **Status:** Planned — not yet implemented
+> **Status:** Implemented
 
 ## Overview
 
