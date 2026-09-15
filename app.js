@@ -1,4 +1,5 @@
 import { store } from './store.js';
+import { fetchJson, fetchFxRate } from './fx.js';
 import {
     initDrive, backupToDrive, restoreFromDrive,
     silentBackup, syncOnLoad, onSyncStatus,
@@ -98,33 +99,6 @@ const formatCurrency = (amount) => {
         currency: 'EUR',
         maximumFractionDigits: 0
     }).format(amount);
-};
-
-// --- FX / Multi-currency ---
-
-const fetchJson = async (url, timeoutMs) => {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    try {
-        const res = await fetch(url, { signal: ctrl.signal });
-        return await res.json();
-    } finally {
-        clearTimeout(timer);
-    }
-};
-
-const _fxCache = {};
-const fetchFxRate = async (from, to = 'EUR') => {
-    if (from === to) return 1;
-    const key = `${from}_${to}`;
-    if (_fxCache[key]) return _fxCache[key];
-    try {
-        const data = await fetchJson(`https://api.frankfurter.app/latest?from=${from}&to=${to}`, 8000);
-        _fxCache[key] = data.rates?.[to] || 1;
-    } catch {
-        return 1;
-    }
-    return _fxCache[key];
 };
 
 // --- Phase 4: Price Auto-Update ---
