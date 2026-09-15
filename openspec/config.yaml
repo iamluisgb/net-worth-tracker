@@ -2,10 +2,12 @@ schema: spec-driven
 
 context: |
   Tech stack: Vanilla JavaScript PWA, ES modules, no build tooling.
-  Files: index.html, app.js, store.js, drive.js, sw.js, manifest.json, style.css.
+  Files: index.html, app.js, fx.js, store.js, drive.js, sw.js, manifest.json, style.css.
   Storage: localStorage via store.js; optional Google Drive backup/sync via drive.js.
   Charts: Chart.js + chartjs-chart-treemap (loaded via CDN in index.html).
-  No package.json, no bundler, no test runner detected.
+  No package.json, no bundler. Test runner: node:test, run via `node --test`.
+  Requires Node >= 22.7 for automatic ESM detection in plain .js files
+  (no package.json, no "type": "module").
 
 strict_tdd: false
 
@@ -14,14 +16,15 @@ testing:
   projects: []
   note: >
     No package.json, go.mod, pyproject.toml, Cargo.toml, or CI/test config
-    detected at the workspace root. No test runner, linter, type checker, or
-    formatter is configured. Zero in-scope projects were discovered, so
-    Strict TDD defaults to false per the no-runner fallback.
+    detected at the workspace root. No linter, type checker, or formatter is
+    configured. Test runner is Node's built-in node:test, run via
+    `node --test` (fx.test.js); requires Node >= 22.7. Strict TDD remains
+    false; the runner exists but is not enforced project-wide.
 
 rules:
   proposal:
     - Include rollback plan for risky changes
-    - Note that there is no automated test suite; manual verification steps are required
+    - Note which acceptance criteria the `node --test` suite covers; anything outside its scope still needs manual verification steps
   specs:
     - Use Given/When/Then for scenarios
     - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
@@ -35,13 +38,14 @@ rules:
       - Follow existing code patterns in app.js, store.js, drive.js
       - Do not introduce a build step or package manager unless explicitly requested
     tdd: false
-    test_command: ""
+    test_command: "node --test"
   verify:
-    test_command: ""
+    test_command: "node --test"
     build_command: ""
     coverage_threshold: 0
     note: >
-      No automated test command exists. Verification must rely on manual
-      functional checks and structural readback until a test runner is added.
+      Automated coverage is fx.js only (node:test, `node --test`). Other
+      areas of the app still rely on manual functional checks and
+      structural readback.
   archive:
     - Warn before merging destructive deltas
