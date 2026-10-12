@@ -1,0 +1,6 @@
+{
+  "packages": [
+    "npm:gentle-pi",
+    "npm:gentle-engram@0.2.0"
+  ]
+}
