@@ -16,9 +16,13 @@
     <link rel="icon" href="icon.svg" type="image/svg+xml">
     <meta name="theme-color" content="#0f172a">
 
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0/dist/chartjs-chart-treemap.min.js"></script>
+    <!-- Chart.js (pinned + SRI: the service worker caches these by URL) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
+        integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0/dist/chartjs-chart-treemap.min.js"
+        integrity="sha384-+CtR19xrp3GBtf1ET0J0NLjBv/XhWf1HOOqYgKkWm5HNfxLBcaSXHTn1Ong2OQFR"
+        crossorigin="anonymous"></script>
 </head>
 
 <body>
