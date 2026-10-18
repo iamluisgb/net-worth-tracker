@@ -11,9 +11,19 @@ const memoryStorage = () => {
     };
 };
 
-globalThis.localStorage = memoryStorage();
+// Node 20+ exposes `crypto` as a getter-only global, so plain assignment
+// throws there. defineProperty works on every supported version.
+Object.defineProperty(globalThis, 'localStorage', {
+    value: memoryStorage(),
+    configurable: true,
+    writable: true,
+});
 let uuid = 0;
-globalThis.crypto = { randomUUID: () => `id-${++uuid}` };
+Object.defineProperty(globalThis, 'crypto', {
+    value: { randomUUID: () => `id-${++uuid}` },
+    configurable: true,
+    writable: true,
+});
 
 const { Store } = await import('./store.js');
 
