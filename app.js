@@ -1,4 +1,4 @@
-import { store } from './store.js';
+import { store, signedValue } from './store.js';
 import { fetchJson, fetchFxRate } from './fx.js';
 import {
     initDrive, backupToDrive, restoreFromDrive,
@@ -10,6 +10,14 @@ import {
 let hiddenCategories = new Set();
 let hiddenAssetClasses = new Set();
 let selectedDateRange = 'MAX';
+
+// Single source of truth for the visible portfolio: the dashboard total, the
+// trend, the chart, the treemap and the share breakdown must agree.
+const isVisibleAsset = (asset) =>
+    !hiddenCategories.has(asset.category) &&
+    (!asset.assetClass || !hiddenAssetClasses.has(asset.assetClass));
+
+const getVisibleAssets = () => store.state.assets.filter(isVisibleAsset);
 
 // Trim history labels/data to the selected date range
 const filterByRange = (labels, data, range) => {
@@ -100,6 +108,15 @@ const formatCurrency = (amount) => {
         maximumFractionDigits: 0
     }).format(amount);
 };
+
+// User-controlled strings (asset names, imported tickers, notes) must never be
+// interpolated into innerHTML unescaped.
+const escapeHtml = (value) => String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 
 // --- Phase 4: Price Auto-Update ---
 
@@ -235,10 +252,10 @@ const renderTickerBulkList = () => {
     }
     container.innerHTML = eligible.map(a => `
         <div class="ticker-bulk-row">
-            <span class="ticker-name" title="${a.name}">${a.name}</span>
+            <span class="ticker-name" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</span>
             <span class="ticker-bulk-badge">${a.category === 'Crypto' ? 'CoinGecko' : 'AV'}</span>
-            <input type="text" data-asset-id="${a.id}" data-category="${a.category}"
-                value="${a.ticker || ''}" placeholder="${a.category === 'Crypto' ? 'bitcoin' : 'AAPL'}">
+            <input type="text" data-asset-id="${a.id}" data-category="${escapeHtml(a.category)}"
+                value="${escapeHtml(a.ticker || '')}" placeholder="${a.category === 'Crypto' ? 'bitcoin' : 'AAPL'}">
         </div>`).join('');
 };
 
@@ -293,7 +310,7 @@ const renderTransactionItem = (tx, asset) => {
     return `
         <div class="glass-panel flex-between list-item">
             <div style="flex: 1;">
-                <div class="font-medium">${asset ? asset.name : 'Unknown Asset'}</div>
+                <div class="font-medium">${asset ? escapeHtml(asset.name) : 'Unknown Asset'}</div>
                 <div class="text-sm text-muted">${new Date(tx.date).toLocaleDateString()}</div>
             </div>
             <div class="text-right mr-2">
@@ -328,9 +345,11 @@ const getLastUpdated = (assetId) => {
 };
 
 const getPerformance = (asset) => {
+    if (asset.category === 'Debt') return null;
     const costBasis = store.getAssetCostBasis(asset.id);
     if (costBasis <= 0) return null;
-    const gainLoss = asset.currentValue - costBasis;
+    const value = signedValue(asset);
+    const gainLoss = value - costBasis;
     const pct = (gainLoss / costBasis) * 100;
     return { costBasis, gainLoss, pct };
 };
@@ -343,15 +362,16 @@ const renderPerfBadge = (asset) => {
 };
 
 const renderAssetCard = (asset) => {
-    const color = asset.currentValue < 0 ? 'var(--danger)' : 'var(--accent-primary)';
+    const value = signedValue(asset);
+    const color = value < 0 ? 'var(--danger)' : 'var(--accent-primary)';
     const nativeCurrency = asset.currency && asset.currency !== 'EUR' && asset.quantity > 0
-        ? `<div class="text-sm text-muted mt-1">${asset.currency} · ${Number(asset.quantity).toLocaleString()} units</div>`
+        ? `<div class="text-sm text-muted mt-1">${escapeHtml(asset.currency)} · ${Number(asset.quantity).toLocaleString()} units</div>`
         : asset.quantity > 0 ? `<div class="text-sm text-muted mt-1">${Number(asset.quantity).toLocaleString()} units</div>` : '';
     return `
         <div class="glass-panel asset-card-mini" data-asset-id="${asset.id}" style="cursor: pointer;">
-            <div class="text-sm text-muted mb-2">${asset.category}</div>
-            <div class="font-semibold mb-1" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${asset.name}</div>
-            <div class="font-medium" style="color: ${color}">${formatCurrency(asset.currentValue)}</div>
+            <div class="text-sm text-muted mb-2">${escapeHtml(asset.category)}</div>
+            <div class="font-semibold mb-1" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(asset.name)}</div>
+            <div class="font-medium" style="color: ${color}">${formatCurrency(value)}</div>
             ${nativeCurrency}
             ${renderPerfBadge(asset)}
         </div>
@@ -359,18 +379,19 @@ const renderAssetCard = (asset) => {
 };
 
 const renderAssetListItem = (asset) => {
-    const color = asset.currentValue < 0 ? 'var(--danger)' : 'var(--accent-primary)';
+    const value = signedValue(asset);
+    const color = value < 0 ? 'var(--danger)' : 'var(--accent-primary)';
     const perf = getPerformance(asset);
     const lastUpd = getLastUpdated(asset.id);
     return `
         <div class="glass-panel flex-between list-item">
             <div style="flex: 1; min-width: 0; cursor: pointer;" class="js-open-detail" data-asset-id="${asset.id}">
-                <div class="text-sm text-muted mb-2">${asset.category}</div>
-                <div class="font-semibold" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${asset.name}</div>
-                ${lastUpd ? `<div style="font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem; opacity:0.7;">${lastUpd}</div>` : ''}
+                <div class="text-sm text-muted mb-2">${escapeHtml(asset.category)}</div>
+                <div class="font-semibold" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(asset.name)}</div>
+                ${lastUpd ? `<div style="font-size:0.65rem; color:var(--text-muted); margin-top:0.2rem;">${lastUpd}</div>` : ''}
             </div>
             <div class="text-right mr-2">
-                <div class="font-medium" style="color: ${color}">${formatCurrency(asset.currentValue)}</div>
+                <div class="font-medium" style="color: ${color}">${formatCurrency(value)}</div>
                 ${asset.quantity > 0 ? `<div class="text-sm text-muted">${Number(asset.quantity).toLocaleString()} u</div>` : ''}
                 ${perf ? `<div class="perf-badge ${perf.pct >= 0 ? 'positive' : 'negative'}" style="margin-top: 0.25rem;">${perf.pct >= 0 ? '+' : ''}${perf.pct.toFixed(1)}%</div>` : ''}
             </div>
@@ -406,13 +427,26 @@ const clearFieldErrors = (formEl) => {
     formEl.querySelectorAll('.input-error').forEach(e => e.classList.remove('input-error'));
 };
 
-const showToast = (message, isError = false) => {
+const showTransactionError = (error) => {
+    if (error?.code === 'insufficient-quantity') {
+        showFieldError(
+            document.getElementById('tx-quantity'),
+            `Solo hay ${Number(error.available).toLocaleString('es-ES')} unidades disponibles`
+        );
+        return;
+    }
+    showToast('No se pudo guardar el movimiento', true);
+};
+
+const showToast = (message, isError = false, duration = 3000) => {
     const t = document.createElement('div');
     t.className = 'toast';
+    t.setAttribute('role', 'status');
+    t.setAttribute('aria-live', 'polite');
     t.style.borderColor = isError ? 'var(--danger)' : 'var(--success)';
     t.textContent = message;
     document.body.appendChild(t);
-    setTimeout(() => t.remove(), 3000);
+    setTimeout(() => t.remove(), duration);
 };
 
 // --- Navigation ---
@@ -430,9 +464,10 @@ const updateTrendEl = (visibleAssets) => {
     if (!trendEl || !trendWrap) return;
 
     const visibleIds = visibleAssets.map(a => a.id);
-    const history = hiddenCategories.size === 0
-        ? store.getHistory('all')
-        : store.getHistoryForAssets(visibleIds);
+    const anyFilter = hiddenCategories.size > 0 || hiddenAssetClasses.size > 0;
+    const history = anyFilter
+        ? store.getHistoryForAssets(visibleIds)
+        : store.getHistory('all');
 
     const monthAgo = new Date();
     monthAgo.setMonth(monthAgo.getMonth() - 1);
@@ -443,7 +478,7 @@ const updateTrendEl = (visibleAssets) => {
         if (history.labels[i] <= monthAgoStr) prevTotal = history.data[i];
     }
 
-    const currTotal = visibleAssets.reduce((sum, a) => sum + (a.currentValue || 0), 0);
+    const currTotal = visibleAssets.reduce((sum, a) => sum + signedValue(a), 0);
     if (prevTotal === 0) {
         trendEl.textContent = 'N/A';
         trendWrap.className = 'trend';
@@ -455,19 +490,57 @@ const updateTrendEl = (visibleAssets) => {
 };
 
 const renderDashboard = (state) => {
-    const visibleAssets = state.assets.filter(a => !hiddenCategories.has(a.category));
-    const visibleTotal = visibleAssets.reduce((sum, a) => sum + (a.currentValue || 0), 0);
+    const visibleAssets = state.assets.filter(isVisibleAsset);
+    const visibleTotal = visibleAssets.reduce((sum, a) => sum + signedValue(a), 0);
 
     // Net Worth
     const totalEl = document.getElementById('total-net-worth');
     if (totalEl) totalEl.textContent = formatCurrency(visibleTotal);
 
-    // Portfolio gains summary
+    // Assets vs liabilities
+    const breakdownEl = document.getElementById('assets-debt-breakdown');
+    if (breakdownEl) {
+        const debt = visibleAssets
+            .filter(a => a.category === 'Debt')
+            .reduce((sum, a) => sum + Math.abs(Number(a.currentValue) || 0), 0);
+        if (debt > 0) {
+            const gross = visibleTotal + debt;
+            breakdownEl.textContent = `${formatCurrency(gross)} en activos · ${formatCurrency(debt)} en deudas`;
+        } else {
+            breakdownEl.textContent = '';
+        }
+    }
+
+    // Goal progress
+    const goalEl = document.getElementById('goal-progress');
+    if (goalEl) {
+        const target = Number(state.settings?.goalTarget) || 0;
+        const monthly = Number(state.settings?.monthlyContribution) || 0;
+        if (target > 0) {
+            const pct = Math.max(0, Math.min(100, (visibleTotal / target) * 100));
+            let eta = '';
+            if (monthly > 0 && visibleTotal < target) {
+                const months = Math.ceil((target - visibleTotal) / monthly);
+                const date = new Date();
+                date.setMonth(date.getMonth() + months);
+                eta = ` · ${date.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })} a ${formatCurrency(monthly)}/mes`;
+            } else if (visibleTotal >= target) {
+                eta = ' · objetivo alcanzado';
+            }
+            goalEl.textContent = `Objetivo ${formatCurrency(target)} · ${pct.toFixed(0)}%${eta}`;
+        } else {
+            goalEl.textContent = '';
+        }
+    }
+
+    // Portfolio gains summary (liabilities are excluded: they are not capital)
     const gainsEl = document.getElementById('portfolio-gains');
     if (gainsEl) {
-        const totalCostBasis = visibleAssets.reduce((sum, a) => sum + store.getAssetCostBasis(a.id), 0);
+        const investable = visibleAssets.filter(a => a.category !== 'Debt');
+        const totalCostBasis = investable.reduce((sum, a) => sum + store.getAssetCostBasis(a.id), 0);
         if (totalCostBasis > 0) {
-            const gain = visibleTotal - totalCostBasis;
+            const currentValue = investable.reduce((sum, a) => sum + signedValue(a), 0);
+            const gain = currentValue - totalCostBasis;
             const pct = (gain / totalCostBasis) * 100;
             const color = gain >= 0 ? 'var(--success)' : 'var(--danger)';
             gainsEl.innerHTML = `<span style="color: var(--text-muted);">Invested ${formatCurrency(totalCostBasis)}</span><span style="color:${color}; margin-left:0.5rem; font-weight:600;">${gain >= 0 ? '+' : ''}${formatCurrency(gain)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)</span>`;
@@ -539,9 +612,47 @@ const fileImport = document.getElementById('file-import');
 
 // --- Helper Functions ---
 
+// Accessible overlays: role/aria-modal, initial focus, focus restore and a
+// shared Escape/Tab handler. The markup stays as-is; semantics are added here.
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const overlayOrigins = new WeakMap();
+
+const openOverlay = (el) => {
+    if (!el) return;
+    overlayOrigins.set(el, document.activeElement);
+    el.classList.remove('hidden');
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    document.body.classList.add('overlay-open');
+
+    const title = el.querySelector('h2, h3');
+    if (title) {
+        if (!title.id) title.id = `overlay-title-${Math.random().toString(36).slice(2, 8)}`;
+        el.setAttribute('aria-labelledby', title.id);
+    } else {
+        el.setAttribute('aria-label', el.id === 'modal-confirm' ? 'Confirm action' : 'Dialog');
+    }
+
+    requestAnimationFrame(() => {
+        const target = el.querySelector(`[data-autofocus], ${FOCUSABLE}`);
+        if (target) target.focus();
+    });
+};
+
+const closeOverlay = (el) => {
+    if (!el) return;
+    el.classList.add('hidden');
+    if (!document.querySelector('.modal-backdrop:not(.hidden)')) {
+        document.body.classList.remove('overlay-open');
+    }
+    const origin = overlayOrigins.get(el);
+    overlayOrigins.delete(el);
+    if (origin && typeof origin.focus === 'function') origin.focus();
+};
+
 const openModal = () => {
     if (!modal) return;
-    modal.classList.remove('hidden');
+    openOverlay(modal);
     // Default to today
     const dateInput = document.getElementById('tx-date');
     if (dateInput) dateInput.valueAsDate = new Date();
@@ -569,7 +680,7 @@ const openModal = () => {
 
 const closeModal = () => {
     if (!modal) return;
-    modal.classList.add('hidden');
+    closeOverlay(modal);
     if (formTransaction) {
         formTransaction.reset();
         const btnSubmit = formTransaction.querySelector('button[type="submit"]');
@@ -598,20 +709,20 @@ const openQuickUpdate = (assetId) => {
     if (!asset) return;
     quickUpdateAssetId = assetId;
     document.getElementById('quick-update-title').textContent = asset.name;
-    document.getElementById('quick-update-current').textContent = `Current: ${formatCurrency(asset.currentValue)}`;
+    document.getElementById('quick-update-current').textContent = `Current: ${formatCurrency(signedValue(asset))}`;
     document.getElementById('quick-update-amount').value = '';
     document.getElementById('quick-update-date').valueAsDate = new Date();
-    document.getElementById('quick-update-modal').classList.remove('hidden');
+    openOverlay(document.getElementById('quick-update-modal'));
     setTimeout(() => document.getElementById('quick-update-amount').focus(), 100);
 };
 
 const closeQuickUpdate = () => {
-    document.getElementById('quick-update-modal').classList.add('hidden');
+    closeOverlay(document.getElementById('quick-update-modal'));
     quickUpdateAssetId = null;
 };
 
-const openHelpModal  = () => document.getElementById('modal-help')?.classList.remove('hidden');
-const closeHelpModal = () => document.getElementById('modal-help')?.classList.add('hidden');
+const openHelpModal  = () => openOverlay(document.getElementById('modal-help'));
+const closeHelpModal = () => closeOverlay(document.getElementById('modal-help'));
 
 const loadDemoData = () => {
     const proceed = () => {
@@ -642,18 +753,22 @@ const clearAllData = () => {
 };
 
 const openSettings = () => {
-    if (modalSettings) modalSettings.classList.remove('hidden');
+    openOverlay(modalSettings);
     const avKeyEl = document.getElementById('av-api-key');
     if (avKeyEl) avKeyEl.value = store.state.settings?.alphaVantageKey || '';
     const avStatusEl = document.getElementById('av-key-status');
     if (avStatusEl) avStatusEl.textContent = '';
     const bulkStatusEl = document.getElementById('ticker-bulk-status');
     if (bulkStatusEl) bulkStatusEl.textContent = '';
+    const goalTargetEl = document.getElementById('goal-target');
+    if (goalTargetEl) goalTargetEl.value = store.state.settings?.goalTarget || '';
+    const goalMonthlyEl = document.getElementById('goal-monthly');
+    if (goalMonthlyEl) goalMonthlyEl.value = store.state.settings?.monthlyContribution || '';
     renderTickerBulkList();
 };
 
 const closeSettings = () => {
-    if (modalSettings) modalSettings.classList.add('hidden');
+    closeOverlay(modalSettings);
 };
 
 const handleExport = () => {
@@ -704,7 +819,7 @@ const populateAssetSelect = () => {
     const optionsHtml = ['<option value="" disabled selected>Select an asset</option>'];
 
     assets.forEach(asset => {
-        optionsHtml.push(`<option value="${asset.id}">${asset.name} (${formatCurrency(asset.currentValue)})</option>`);
+        optionsHtml.push(`<option value="${asset.id}">${escapeHtml(asset.name)} (${formatCurrency(signedValue(asset))})</option>`);
     });
 
     selectAsset.innerHTML = optionsHtml.join('');
@@ -757,6 +872,40 @@ const setupEventListeners = () => {
             if (e.target === modal) closeModal();
         });
     }
+
+    // Escape closes the topmost dialog; Tab is trapped inside it.
+    document.addEventListener('keydown', (e) => {
+        const open = Array.from(document.querySelectorAll('.modal-backdrop:not(.hidden)')).pop();
+        if (!open) return;
+
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            const close = {
+                'modal-confirm': closeConfirmModal,
+                'quick-update-modal': closeQuickUpdate,
+                'modal-settings': closeSettings,
+                'modal-help': closeHelpModal,
+                'modal-share': closeShareModal,
+                'modal-container': closeModal,
+            }[open.id];
+            if (close) close();
+            return;
+        }
+
+        if (e.key !== 'Tab') return;
+        const nodes = Array.from(open.querySelectorAll(FOCUSABLE))
+            .filter(node => node.getClientRects().length > 0);
+        if (!nodes.length) return;
+        const first = nodes[0];
+        const last = nodes[nodes.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    });
 
     // Help modal listeners
     document.getElementById('btn-help')?.addEventListener('click', openHelpModal);
@@ -997,6 +1146,15 @@ const setupEventListeners = () => {
         if (statusEl) statusEl.textContent = key ? 'Key saved.' : 'Key cleared.';
     });
 
+    // Save goal
+    document.getElementById('btn-save-goal')?.addEventListener('click', () => {
+        const target = Math.max(0, parseFloat(document.getElementById('goal-target')?.value) || 0);
+        const monthly = Math.max(0, parseFloat(document.getElementById('goal-monthly')?.value) || 0);
+        store.editSettings({ goalTarget: target, monthlyContribution: monthly });
+        const statusEl = document.getElementById('goal-status');
+        if (statusEl) statusEl.textContent = target > 0 ? 'Objetivo guardado.' : 'Objetivo borrado.';
+    });
+
     // Ticker field visibility when category changes
     document.getElementById('asset-category')?.addEventListener('change', updateTickerVisibility);
 
@@ -1051,24 +1209,28 @@ const setupEventListeners = () => {
 
             const newAsset = store.addAsset({ name, category, currency, assetClass, type: 'manual', ticker, tickerSource });
 
-            if (initialValue > 0 || initialQuantity > 0) {
-                let amountEur = initialValue;
-                let txExtra = {};
-                if (currency !== 'EUR' && initialValue > 0) {
-                    const rate = await fetchFxRate(currency, 'EUR');
-                    amountEur = initialValue * rate;
-                    txExtra = { originalAmount: initialValue, originalCurrency: currency, fxRate: rate };
+            try {
+                if (initialValue > 0 || initialQuantity > 0) {
+                    let amountEur = initialValue;
+                    let txExtra = {};
+                    if (currency !== 'EUR' && initialValue > 0) {
+                        const rate = await fetchFxRate(currency, 'EUR');
+                        amountEur = initialValue * rate;
+                        txExtra = { originalAmount: initialValue, originalCurrency: currency, fxRate: rate };
+                    }
+                    store.addTransaction({
+                        assetId: newAsset.id,
+                        type: 'buy',
+                        date,
+                        amount: amountEur,
+                        quantity: initialQuantity,
+                        currentTotalValue: amountEur,
+                        notes: 'Initial Balance',
+                        ...txExtra
+                    });
                 }
-                store.addTransaction({
-                    assetId: newAsset.id,
-                    type: 'buy',
-                    date,
-                    amount: amountEur,
-                    quantity: initialQuantity,
-                    currentTotalValue: amountEur,
-                    notes: 'Initial Balance',
-                    ...txExtra
-                });
+            } catch (error) {
+                showTransactionError(error);
             }
 
             closeModal();
@@ -1105,28 +1267,33 @@ const setupEventListeners = () => {
             }
 
 
-            if (editingTransactionId) {
-                const existingTx = store.state.transactions.find(t => t.id === editingTransactionId);
-                store.editTransaction(editingTransactionId, {
-                    assetId,
-                    type,
-                    date,
-                    amount,
-                    quantity,
-                    fromAssetId,
-                    notes: existingTx?.notes || ''
-                });
-                editingTransactionId = null; // Reset
-            } else {
-                store.addTransaction({
-                    assetId,
-                    type,
-                    date,
-                    amount,
-                    quantity,
-                    fromAssetId, // Only used if type is 'move'
-                    notes: ''
-                });
+            try {
+                if (editingTransactionId) {
+                    const existingTx = store.state.transactions.find(t => t.id === editingTransactionId);
+                    store.editTransaction(editingTransactionId, {
+                        assetId,
+                        type,
+                        date,
+                        amount,
+                        quantity,
+                        fromAssetId,
+                        notes: existingTx?.notes || ''
+                    });
+                    editingTransactionId = null; // Reset
+                } else {
+                    store.addTransaction({
+                        assetId,
+                        type,
+                        date,
+                        amount,
+                        quantity,
+                        fromAssetId, // Only used if type is 'move'
+                        notes: ''
+                    });
+                }
+            } catch (error) {
+                showTransactionError(error);
+                return;
             }
 
             closeModal();
@@ -1181,9 +1348,8 @@ const setupEventListeners = () => {
             }
             const confirmed = await showConfirm('¿Restaurar datos desde Drive? Se sobreescribirán los datos actuales.');
             if (!confirmed) return;
-            store.state = { ...store.state, ...result.data };
-            store.save();
-            store.notify();
+            const imported = store.importData(result.data);
+            if (!imported.success) throw new Error(imported.error);
             if (statusEl) { statusEl.textContent = `Restaurado (${new Date(result.modifiedTime).toLocaleString('es')})`; statusEl.className = 'drive-status drive-success'; }
         } catch {
             if (statusEl) { statusEl.textContent = 'Error al restaurar desde Drive'; statusEl.className = 'drive-status drive-error'; }
@@ -1270,14 +1436,9 @@ const updateChart = (filterId = 'all') => {
     let history;
     if (filterId === 'all') {
         const hasFilters = hiddenCategories.size > 0 || hiddenAssetClasses.size > 0;
-        if (hasFilters) {
-            let visibleAssets = store.state.assets.filter(a => !hiddenCategories.has(a.category));
-            if (hiddenAssetClasses.size > 0)
-                visibleAssets = visibleAssets.filter(a => !a.assetClass || !hiddenAssetClasses.has(a.assetClass));
-            history = store.getHistoryForAssets(visibleAssets.map(a => a.id));
-        } else {
-            history = store.getHistory('all');
-        }
+        history = hasFilters
+            ? store.getHistoryForAssets(getVisibleAssets().map(a => a.id))
+            : store.getHistory('all');
     } else {
         history = store.getHistory(filterId);
     }
@@ -1296,7 +1457,7 @@ const populateChartFilter = () => {
 
     const options = ['<option value="all">All Assets</option>'];
     assets.forEach(a => {
-        options.push(`<option value="${a.id}">${a.name}</option>`);
+        options.push(`<option value="${a.id}">${escapeHtml(a.name)}</option>`);
     });
 
     filterEl.innerHTML = options.join('');
@@ -1315,11 +1476,11 @@ const showConfirm = (message) => new Promise((resolve) => {
 const openConfirmModal = (message, onConfirm) => {
     document.getElementById('confirm-message').textContent = message;
     _confirmCallback = onConfirm;
-    document.getElementById('modal-confirm').classList.remove('hidden');
+    openOverlay(document.getElementById('modal-confirm'));
 };
 
 const closeConfirmModal = () => {
-    document.getElementById('modal-confirm').classList.add('hidden');
+    closeOverlay(document.getElementById('modal-confirm'));
     if (_confirmReject) { _confirmReject(); _confirmReject = null; }
     _confirmCallback = null;
 };
@@ -1394,27 +1555,23 @@ const CATEGORY_COLORS = ['#38bdf8', '#818cf8', '#34d399', '#f59e0b', '#f87171', 
 let categoryChart = null;
 
 const getTreemapData = (groupBy = 'category') => {
-    let visibleAssets = store.state.assets.filter(a =>
-        a.currentValue > 0 && !hiddenCategories.has(a.category)
-    );
-    if (hiddenAssetClasses.size > 0)
-        visibleAssets = visibleAssets.filter(a => !a.assetClass || !hiddenAssetClasses.has(a.assetClass));
+    const visibleAssets = getVisibleAssets().filter(a => signedValue(a) > 0);
 
     if (groupBy === 'asset') {
-        return visibleAssets.map(a => ({ g: a.name, v: a.currentValue }));
+        return visibleAssets.map(a => ({ g: a.name, v: signedValue(a) }));
     }
     if (groupBy === 'assetClass') {
         return Object.entries(
             visibleAssets.reduce((acc, a) => {
                 const key = a.assetClass || 'Sin clase';
-                acc[key] = (acc[key] || 0) + a.currentValue;
+                acc[key] = (acc[key] || 0) + signedValue(a);
                 return acc;
             }, {})
         ).map(([g, v]) => ({ g, v }));
     }
     return Object.entries(
         visibleAssets.reduce((acc, a) => {
-            acc[a.category] = (acc[a.category] || 0) + a.currentValue;
+            acc[a.category] = (acc[a.category] || 0) + signedValue(a);
             return acc;
         }, {})
     ).map(([g, v]) => ({ g, v }));
@@ -1485,8 +1642,8 @@ const renderCategoryChips = () => {
     container.innerHTML =
         `<span class="filter-chips-label">Categoría</span>` +
         categories.map(cat => `
-            <button class="category-chip ${hiddenCategories.has(cat) ? '' : 'active'}" data-category="${cat}">
-                ${cat}
+            <button class="category-chip ${hiddenCategories.has(cat) ? '' : 'active'}" data-category="${escapeHtml(cat)}">
+                ${escapeHtml(cat)}
             </button>
         `).join('');
 };
@@ -1499,35 +1656,16 @@ const renderAssetClassChips = () => {
     container.innerHTML =
         `<span class="filter-chips-label">Clase</span>` +
         classes.map(cls => `
-            <button class="category-chip ${hiddenAssetClasses.has(cls) ? '' : 'active'}" data-class="${cls}">
-                ${cls}
+            <button class="category-chip ${hiddenAssetClasses.has(cls) ? '' : 'active'}" data-class="${escapeHtml(cls)}">
+                ${escapeHtml(cls)}
             </button>
         `).join('');
 };
 
 const applyFilters = () => {
-    let visibleAssets = store.state.assets.filter(a => !hiddenCategories.has(a.category));
-    if (hiddenAssetClasses.size > 0)
-        visibleAssets = visibleAssets.filter(a => !a.assetClass || !hiddenAssetClasses.has(a.assetClass));
-    const visibleTotal = visibleAssets.reduce((sum, a) => sum + (a.currentValue || 0), 0);
-
-    const totalEl = document.getElementById('total-net-worth');
-    if (totalEl) totalEl.textContent = formatCurrency(visibleTotal);
-
-    updateTrendEl(visibleAssets);
-
-    const assetsEl = document.getElementById('assets-preview');
-    if (assetsEl) {
-        assetsEl.innerHTML = visibleAssets.length
-            ? visibleAssets.map(renderAssetCard).join('')
-            : `<div class="glass-panel asset-card-mini flex-center text-muted" style="min-width: 200px;">No visible assets</div>`;
-    }
-
-    const currentFilter = document.getElementById('chart-filter').value;
-    updateChart(currentFilter);
+    renderDashboard(store.state);
+    updateChart(document.getElementById('chart-filter').value);
     updateCategoryChart();
-    renderCategoryChips();
-    renderAssetClassChips();
 };
 
 // --- Share Modal ---
@@ -1564,13 +1702,12 @@ const openShareModal = () => {
     }
 
     // Text breakdown (fallback for sharing)
-    const visibleAssets = store.state.assets.filter(a => !hiddenCategories.has(a.category));
-    const total = visibleAssets.filter(a => a.currentValue > 0)
-        .reduce((sum, a) => sum + a.currentValue, 0);
+    const visibleAssets = getVisibleAssets().filter(a => signedValue(a) > 0);
+    const total = visibleAssets.reduce((sum, a) => sum + signedValue(a), 0);
 
     const categories = {};
-    visibleAssets.filter(a => a.currentValue > 0).forEach(a => {
-        categories[a.category] = (categories[a.category] || 0) + a.currentValue;
+    visibleAssets.forEach(a => {
+        categories[a.category] = (categories[a.category] || 0) + signedValue(a);
     });
 
     const breakdown = Object.entries(categories)
@@ -1581,17 +1718,17 @@ const openShareModal = () => {
 
     document.getElementById('share-content').innerHTML = breakdown.map(b => `
         <div class="flex-between mb-2">
-            <span class="text-sm">${b.cat}</span>
+            <span class="text-sm">${escapeHtml(b.cat)}</span>
             <span class="font-semibold" style="color: var(--accent-primary)">${b.pct.toFixed(1)}%</span>
         </div>`).join('');
 
     const modalEl = document.getElementById('modal-share');
     modalEl.dataset.shareText = shareText;
     modalEl.dataset.imageUrl = imageDataURL || '';
-    modalEl.classList.remove('hidden');
+    openOverlay(modalEl);
 };
 
-const closeShareModal = () => document.getElementById('modal-share').classList.add('hidden');
+const closeShareModal = () => closeOverlay(document.getElementById('modal-share'));
 
 const renderAllAssets = (state) => {
     const container = document.getElementById('all-assets-list');
@@ -1617,10 +1754,10 @@ const renderAllAssets = (state) => {
 
     let html = '';
     sortedCategories.forEach((category, idx) => {
-        const assets = groups[category].sort((a, b) => b.currentValue - a.currentValue);
-        const subtotal = assets.reduce((sum, a) => sum + (a.currentValue || 0), 0);
+        const assets = groups[category].sort((a, b) => signedValue(b) - signedValue(a));
+        const subtotal = assets.reduce((sum, a) => sum + signedValue(a), 0);
         html += `<div class="list-group-header" style="${idx > 0 ? 'margin-top:1rem;' : ''}">
-            <span>${category}</span>
+            <span>${escapeHtml(category)}</span>
             <span>${formatCurrency(subtotal)}</span>
         </div>`;
         html += assets.map(renderAssetListItem).join('');
@@ -1636,7 +1773,7 @@ const populateTxFilterAsset = () => {
     if (!sel) return;
     const current = sel.value;
     sel.innerHTML = '<option value="">All Assets</option>' +
-        store.state.assets.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+        store.state.assets.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
     if (current) sel.value = current;
 };
 
@@ -1696,7 +1833,7 @@ const openAssetDetail = (assetId) => {
 
     document.getElementById('detail-asset-name').textContent = asset.name;
     document.getElementById('detail-asset-category').textContent = asset.category;
-    document.getElementById('detail-asset-value').textContent = formatCurrency(asset.currentValue);
+    document.getElementById('detail-asset-value').textContent = formatCurrency(signedValue(asset));
 
     const qtyEl = document.getElementById('detail-asset-quantity');
     qtyEl.textContent = asset.quantity > 0 ? `${Number(asset.quantity).toLocaleString()} units` : '';
@@ -1725,6 +1862,18 @@ const openAssetDetail = (assetId) => {
 
 const init = () => {
     console.log('Initializing App...');
+
+    // Surface storage failures instead of losing writes silently.
+    store.onSaveError = () => showToast(
+        'No se pudo guardar: el almacenamiento está lleno. Exportá una copia y liberá espacio.',
+        true,
+        8000
+    );
+
+    // Capture today's net worth even on a day with no edits.
+    store.recordSnapshot();
+    store.save();
+
     // Initial Render
     renderDashboard(store.state);
     populateChartFilter();
@@ -1757,8 +1906,7 @@ const init = () => {
     const startDrive = () => {
         initDrive();
         if (isAutoSync()) syncOnLoad(store.state, (data) => {
-            store.state = { ...store.state, ...data };
-            store.save();
+            store.importData(data);
         });
     };
     if (typeof google !== 'undefined' && google.accounts) {
@@ -1776,7 +1924,7 @@ const init = () => {
         if (document.visibilityState === 'hidden' && isAutoSync()) {
             debouncedBackup.flush();
         } else if (document.visibilityState === 'visible' && isAutoSync() && !isSyncing()) {
-            syncOnLoad(store.state, (data) => { store.state = { ...store.state, ...data }; store.save(); });
+            syncOnLoad(store.state, (data) => { store.importData(data); });
         }
     });
 
@@ -1804,6 +1952,12 @@ const init = () => {
 
 // --- Service Worker Registration ---
 if ('serviceWorker' in navigator) {
+    const hadController = Boolean(navigator.serviceWorker.controller);
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController) return;
+        showToast('Nueva versión disponible. Recargá para actualizarla.', false, 6000);
+    });
+
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
             .then(registration => {

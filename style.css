@@ -4,8 +4,8 @@
     --bg-surface: #1e293b;
     --bg-surface-2: #334155;
     --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
+    --text-secondary: #cbd5e1;
+    --text-muted: #8296b0;
     --accent-primary: #38bdf8;
     --accent-secondary: #818cf8;
     --success: #34d399;
@@ -36,7 +36,7 @@
     --bg-surface-2: #e2e8f0;
     --text-primary: #0f172a;
     --text-secondary: #475569;
-    --text-muted: #94a3b8;
+    --text-muted: #5b6b80;
     --glass-border: rgba(0, 0, 0, 0.08);
     --glass-bg: rgba(255, 255, 255, 0.7);
 }
@@ -421,6 +421,15 @@ select {
 input:focus,
 select:focus {
     border-color: var(--accent-primary);
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+body.overlay-open {
+    overflow: hidden;
 }
 
 /* Radio Group */
@@ -927,4 +936,15 @@ select:focus {
     background: var(--bg-surface-2);
     color: var(--text-muted);
     flex-shrink: 0;
+}
+/* Respect the user's motion preference. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }

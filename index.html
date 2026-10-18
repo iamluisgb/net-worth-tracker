@@ -3,7 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Private, local-first net worth tracker. Your data stays in your browser.">
     <title>My Worth Tracker</title>
     <link rel="stylesheet" href="style.css">
 
@@ -14,7 +15,11 @@
 
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icon-180.png">
     <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="My Worth">
 
     <!-- Chart.js (pinned + SRI: the service worker caches these by URL) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
@@ -69,7 +74,9 @@
                     </button>
                     <span class="label">Total Net Worth</span>
                     <h1 class="amount" id="total-net-worth">--</h1>
+                    <div id="assets-debt-breakdown" class="text-sm text-muted" style="margin-top: 0.15rem;"></div>
                     <div id="portfolio-gains" class="text-sm" style="margin-top: 0.15rem; min-height: 1.25rem;"></div>
+                    <div id="goal-progress" class="text-sm text-muted" style="margin-top: 0.15rem;"></div>
                     <div class="trend positive">
                         <span id="trend-value">+0.0%</span>
                         <span class="period">this month</span>
@@ -238,7 +245,7 @@
             <div class="modal glass-panel">
                 <div class="modal-header">
                     <h3>Add Item</h3>
-                    <button id="close-modal" class="icon-btn">
+                    <button id="close-modal" class="icon-btn" aria-label="Close">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -265,7 +272,7 @@
                         <div class="form-group hidden" id="group-from-asset">
                             <label for="tx-from-asset">From Asset</label>
                             <select id="tx-from-asset">
-                                <option value="" disabled selected>Select hidden asset (From)</option>
+                                <option value="" disabled selected>Select source asset</option>
                                 <!-- Populated dynamically -->
                             </select>
                         </div>
@@ -387,7 +394,7 @@
             <div class="modal glass-panel" style="max-height:85vh; overflow-y:auto;">
                 <div class="modal-header">
                     <h3>Guía de uso</h3>
-                    <button id="close-help" class="icon-btn">
+                    <button id="close-help" class="icon-btn" aria-label="Close">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -480,7 +487,7 @@
             <div class="modal glass-panel">
                 <div class="modal-header">
                     <h3>Settings</h3>
-                    <button id="close-settings" class="icon-btn">
+                    <button id="close-settings" class="icon-btn" aria-label="Close">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -491,7 +498,7 @@
 
                 <div class="form-group">
                     <label>Data Management</label>
-                    <p class="text-sm text-muted mb-4">Export your data to JSON for backup or transfer.</p>
+                    <p class="text-sm text-muted mb-4">Export your data to JSON for backup or transfer. API keys are not included.</p>
 
                     <button id="btn-export" class="btn-primary mb-4"
                         style="background: var(--bg-surface-2); border: 1px solid var(--glass-border);">
@@ -585,6 +592,28 @@
                 </div>
 
                 <div class="form-group" style="margin-top: 1.5rem;">
+                    <label>Objetivo</label>
+                    <p class="text-sm text-muted mb-4">
+                        Patrimonio objetivo y aportación mensual prevista. La proyección ignora la rentabilidad futura y solo suma aportaciones.
+                    </p>
+                    <div class="flex-row gap-2" style="margin-bottom: 0.5rem;">
+                        <div style="flex: 1;">
+                            <label for="goal-target" class="text-sm text-muted">Objetivo (€)</label>
+                            <input type="number" id="goal-target" step="1000" min="0" placeholder="100000" inputmode="numeric">
+                        </div>
+                        <div style="flex: 1;">
+                            <label for="goal-monthly" class="text-sm text-muted">Aportación / mes (€)</label>
+                            <input type="number" id="goal-monthly" step="50" min="0" placeholder="500" inputmode="numeric">
+                        </div>
+                    </div>
+                    <button id="btn-save-goal" class="btn-primary"
+                        style="background: var(--bg-surface-2); border: 1px solid var(--glass-border);">
+                        Save Goal
+                    </button>
+                    <div id="goal-status" class="text-sm text-muted" style="margin-top: 0.5rem; text-align: center;"></div>
+                </div>
+
+                <div class="form-group" style="margin-top: 1.5rem;">
                     <label>Asset Tickers</label>
                     <p class="text-sm text-muted mb-4">Set tickers for all eligible assets at once.</p>
                     <div id="ticker-bulk-list" class="ticker-bulk-list"></div>
@@ -612,7 +641,7 @@
             <div class="modal glass-panel">
                 <div class="modal-header">
                     <h3>Share Portfolio</h3>
-                    <button id="close-share" class="icon-btn">
+                    <button id="close-share" class="icon-btn" aria-label="Close">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -648,7 +677,7 @@
                         <h3 style="margin: 0;" id="quick-update-title">Update Value</h3>
                         <div class="text-sm text-muted" id="quick-update-current"></div>
                     </div>
-                    <button class="icon-btn" id="close-quick-update">
+                    <button class="icon-btn" id="close-quick-update" aria-label="Close">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                     </button>
                 </div>
