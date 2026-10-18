@@ -18,6 +18,9 @@ const APP_SHELL = [
     'drive.js',
     'manifest.json',
     'icon.svg',
+    'icon-192.png',
+    'icon-512.png',
+    'icon-180.png',
 ].map(scoped);
 
 const OFFLINE_URL = scoped('index.html');
