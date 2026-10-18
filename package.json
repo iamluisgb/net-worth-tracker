@@ -1,0 +1,13 @@
+{
+  "name": "my-worth-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first net worth tracker PWA. No build step, no dependencies.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18.19"
+  }
+}

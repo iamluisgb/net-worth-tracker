@@ -1,6 +1,5 @@
-// Requires Node >= 22.7 for automatic ESM detection in a plain .js file
-// (no package.json, no "type": "module"). Below that version this suite
-// fails with a syntax error rather than a version message.
+// Run with `node --test` (Node >= 18.19). package.json sets "type": "module"
+// so plain .js files load as ESM on every supported Node version.
 
 import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';

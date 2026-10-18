@@ -5,9 +5,8 @@ context: |
   Files: index.html, app.js, fx.js, store.js, drive.js, sw.js, manifest.json, style.css.
   Storage: localStorage via store.js; optional Google Drive backup/sync via drive.js.
   Charts: Chart.js + chartjs-chart-treemap (loaded via CDN in index.html).
-  No package.json, no bundler. Test runner: node:test, run via `node --test`.
-  Requires Node >= 22.7 for automatic ESM detection in plain .js files
-  (no package.json, no "type": "module").
+  No bundler and no dependencies. package.json only declares `"type": "module"`
+  and the `node --test` script (Node >= 18.19). Test runner: node:test.
 
 strict_tdd: false
 
@@ -15,11 +14,9 @@ testing:
   strict_tdd: false
   projects: []
   note: >
-    No package.json, go.mod, pyproject.toml, Cargo.toml, or CI/test config
-    detected at the workspace root. No linter, type checker, or formatter is
-    configured. Test runner is Node's built-in node:test, run via
-    `node --test` (fx.test.js); requires Node >= 22.7. Strict TDD remains
-    false; the runner exists but is not enforced project-wide.
+    No CI/lint/type-check config. Test runner is Node's built-in node:test,
+    run via `node --test` (fx.test.js, 13 tests). Strict TDD remains false;
+    the runner exists but is not enforced project-wide.
 
 rules:
   proposal:
