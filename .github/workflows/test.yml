@@ -18,6 +18,6 @@ jobs:
         with:
           node-version: '20'
       - name: Syntax check
-        run: for f in app.js store.js drive.js fx.js sw.js; do node --check "$f"; done
+        run: for f in app.js store.js drive.js fx.js sw.js prices.js concurrency.js; do node --check "$f"; done
       - name: Unit tests
         run: node --test

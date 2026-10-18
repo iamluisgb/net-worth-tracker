@@ -16,6 +16,8 @@ const APP_SHELL = [
     'store.js',
     'fx.js',
     'drive.js',
+    'concurrency.js',
+    'prices.js',
     'manifest.json',
     'icon.svg',
     'icon-192.png',

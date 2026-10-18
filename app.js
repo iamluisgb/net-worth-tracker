@@ -1,4 +1,9 @@
-import { store, signedValue } from './store.js';
+import { store, signedValue, localDateKey } from './store.js';
+import { mapWithConcurrency } from './concurrency.js';
+import {
+    getCachedPrice, putCachedPrice, parseAlphaVantageQuote,
+    parseCoinGeckoPrice, formatFailures
+} from './prices.js';
 import { fetchJson, fetchFxRate } from './fx.js';
 import {
     initDrive, backupToDrive, restoreFromDrive,
@@ -154,7 +159,7 @@ const updateTickerVisibility = () => {
 
 const upsertUpdate = (assetId, date, amount, notes = '') => {
     const existing = store.state.transactions.find(
-        t => t.assetId === assetId && t.type === 'update' && t.date === date
+        t => t.assetId === assetId && t.type === 'update' && localDateKey(t.date) === date
     );
     if (existing) {
         store.editTransaction(existing.id, { amount, notes });
@@ -163,82 +168,189 @@ const upsertUpdate = (assetId, date, amount, notes = '') => {
     }
 };
 
-const fetchPrices = async () => {
+let priceRefreshRunning = false;
+
+const fetchPrices = async ({ force = false } = {}) => {
+    if (priceRefreshRunning) return;
+    priceRefreshRunning = true;
+
     const btn = document.getElementById('btn-refresh-prices');
     const icon = document.getElementById('refresh-icon');
+    const statusEl = document.getElementById('price-refresh-status');
     if (icon) icon.classList.add('spinning');
-    if (btn) btn.disabled = true;
+    if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
 
+    const today = localDateKey();
     const assets = store.state.assets;
-    let updated = 0;
+    const cryptoAssets = assets.filter(a => a.tickerSource === 'coingecko' && a.ticker && Number(a.quantity) > 0);
+    const stockAssets = assets.filter(a => a.tickerSource === 'alphavantage' && a.ticker && Number(a.quantity) > 0);
+    const totalConfigured = cryptoAssets.length + stockAssets.length;
+
+    let cache = { ...(store.state.settings?.priceCache || {}) };
+    let fetched = 0;
+    let cached = 0;
     let failed = 0;
-    const today = new Date().toISOString().split('T')[0];
+    let skippedByLimit = 0;
+    let done = 0;
+    let rateLimitMessage = '';
+    const failures = [];
+    const pending = [];
+
+    const setStatus = (label) => {
+        if (!statusEl) return;
+        statusEl.textContent = label;
+        statusEl.hidden = !label;
+    };
+    const advance = (label) => {
+        done++;
+        if (!totalConfigured) return;
+        setStatus(`Actualizando precios… ${done}/${totalConfigured}${label ? ` · ${label}` : ''}`);
+    };
+    const queue = (asset, eur) => pending.push({ asset, eur });
+
+    // Apply everything collected so far in one store notification and one save,
+    // instead of re-rendering the whole dashboard once per asset.
+    const flush = () => {
+        if (!pending.length) return;
+        const queued = pending.splice(0);
+        store.batch(() => {
+            queued.forEach(({ asset, eur }) => {
+                try {
+                    upsertUpdate(asset.id, today, eur * Number(asset.quantity), 'Auto price update');
+                } catch {
+                    failed++;
+                }
+            });
+            store.editSettings({ priceCache: cache });
+        });
+    };
 
     try {
-        // --- CoinGecko (Crypto) ---
-        const cryptoAssets = assets.filter(a => a.tickerSource === 'coingecko' && a.ticker && Number(a.quantity) > 0);
-        if (cryptoAssets.length > 0) {
-            const ids = cryptoAssets.map(a => a.ticker).join(',');
-            try {
-                const data = await fetchJson(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=eur`, 10000);
-                for (const asset of cryptoAssets) {
-                    const priceEur = data[asset.ticker]?.eur;
-                    if (priceEur != null) {
-                        upsertUpdate(asset.id, today, priceEur * Number(asset.quantity), 'Auto price update');
-                        updated++;
-                    } else {
-                        failed++;
-                    }
-                }
-            } catch {
-                failed += cryptoAssets.length;
+        if (totalConfigured === 0) {
+            showToast('No assets configured for auto-update. Add tickers in asset settings.');
+            return;
+        }
+
+        // --- CoinGecko (Crypto): one batched request ---
+        const cryptoToFetch = [];
+        for (const asset of cryptoAssets) {
+            const hit = force ? null : getCachedPrice(cache, 'coingecko', asset.ticker);
+            if (hit) {
+                queue(asset, hit.eur);
+                cached++;
+                advance(asset.ticker);
+            } else {
+                cryptoToFetch.push(asset);
             }
         }
 
-        // --- Alpha Vantage (Stocks/Funds) ---
-        const stockAssets = assets.filter(a => a.tickerSource === 'alphavantage' && a.ticker && Number(a.quantity) > 0);
-        if (stockAssets.length > 0) {
+        if (cryptoToFetch.length > 0) {
+            const ids = cryptoToFetch.map(a => a.ticker).join(',');
+            try {
+                const data = await fetchJson(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=eur`, 10000);
+                for (const asset of cryptoToFetch) {
+                    const parsed = parseCoinGeckoPrice(data, asset.ticker);
+                    if (parsed.price) {
+                        cache = putCachedPrice(cache, 'coingecko', asset.ticker, parsed.price);
+                        queue(asset, parsed.price);
+                        fetched++;
+                    } else {
+                        failed++;
+                        failures.push(asset.ticker);
+                    }
+                    advance(asset.ticker);
+                }
+            } catch {
+                for (const asset of cryptoToFetch) {
+                    failed++;
+                    failures.push(asset.ticker);
+                    advance(asset.ticker);
+                }
+            }
+        }
+        flush();
+
+        // --- Alpha Vantage (Stocks/Funds): 5 requests/minute, burst first ---
+        const stockToFetch = [];
+        for (const asset of stockAssets) {
+            const hit = force ? null : getCachedPrice(cache, 'alphavantage', asset.ticker);
+            if (hit) {
+                queue(asset, hit.eur);
+                cached++;
+                advance(asset.ticker);
+            } else {
+                stockToFetch.push(asset);
+            }
+        }
+
+        if (stockToFetch.length > 0) {
             const avKey = store.state.settings.alphaVantageKey;
             if (!avKey) {
-                showToast('Add an Alpha Vantage API key in Settings to update stocks');
+                for (const asset of stockToFetch) {
+                    failed++;
+                    failures.push(asset.ticker);
+                    advance(asset.ticker);
+                }
+                showToast('Add an Alpha Vantage API key in Settings to update stocks', true, 6000);
             } else {
-                for (let i = 0; i < stockAssets.length; i++) {
-                    if (i > 0) await new Promise(r => setTimeout(r, 12000)); // 5 req/min limit
-                    const asset = stockAssets[i];
+                // The free tier is 25 requests/day with no documented
+                // per-minute window, so keep five in flight and no artificial
+                // delay (the old code waited 12s before every ticker).
+                await mapWithConcurrency(stockToFetch, 5, async (asset) => {
+                    if (rateLimitMessage) {
+                        skippedByLimit++;
+                        advance(asset.ticker);
+                        return;
+                    }
                     try {
-                        const data = await fetchJson(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(asset.ticker)}&apikey=${avKey}`, 15000);
-                        const price = parseFloat(data['Global Quote']?.['05. price']);
-                        if (!isNaN(price)) {
+                        const data = await fetchJson(
+                            `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(asset.ticker)}&apikey=${avKey}`,
+                            15000
+                        );
+                        const parsed = parseAlphaVantageQuote(data);
+                        if (parsed.error === 'rate-limit') {
+                            rateLimitMessage = parsed.message;
+                            failed++;
+                            failures.push(asset.ticker);
+                        } else if (parsed.error) {
+                            failed++;
+                            failures.push(asset.ticker);
+                        } else {
                             const priceCurrency = derivePriceCurrency(asset.ticker);
                             const fxRate = priceCurrency === 'EUR' ? 1 : await fetchFxRate(priceCurrency, 'EUR');
-                            upsertUpdate(asset.id, today, price * fxRate * Number(asset.quantity), 'Auto price update');
-                            updated++;
-                        } else {
-                            failed++;
+                            const eur = parsed.price * fxRate;
+                            cache = putCachedPrice(cache, 'alphavantage', asset.ticker, eur);
+                            queue(asset, eur);
+                            fetched++;
                         }
                     } catch {
                         failed++;
+                        failures.push(asset.ticker);
                     }
-                }
+                    advance(asset.ticker);
+                });
             }
         }
+        flush();
 
-        const totalConfigured = cryptoAssets.length + stockAssets.length;
-        if (totalConfigured === 0) {
-            showToast('No assets configured for auto-update. Add tickers in asset settings.');
-        } else {
-            const parts = [];
-            if (updated > 0) parts.push(`Updated ${updated} asset${updated !== 1 ? 's' : ''}`);
-            if (failed > 0) parts.push(`${failed} failed`);
-            if (parts.length) showToast(parts.join(', '));
-        }
+        const parts = [];
+        if (fetched > 0) parts.push(`Updated ${fetched}`);
+        if (cached > 0) parts.push(`${cached} from cache`);
+        if (failed > 0) parts.push(`${failed} failed${failures.length ? `: ${formatFailures(failures)}` : ''}`);
+        if (skippedByLimit > 0) parts.push(`${skippedByLimit} skipped`);
+        if (rateLimitMessage) parts.push('Alpha Vantage limit reached');
+        showToast(parts.join(' · ') || 'No prices to update', failed > 0, failed > 0 ? 9000 : 5000);
 
-        if (updated > 0) {
+        if (fetched > 0) {
+            // Only a real network success advances the freshness stamp.
             store.editSettings({ lastPriceUpdate: new Date().toISOString() });
         }
     } finally {
+        flush();
         if (icon) icon.classList.remove('spinning');
-        if (btn) btn.disabled = false;
+        if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
+        setStatus('');
+        priceRefreshRunning = false;
     }
 };
 
@@ -298,7 +410,10 @@ const scheduleAutoRefresh = () => {
     const lastUpdate = store.state.settings?.lastPriceUpdate;
     if (!lastUpdate) return;
     const daysSince = (Date.now() - new Date(lastUpdate).getTime()) / 86400000;
-    if (daysSince >= 7) fetchPrices();
+    if (daysSince >= 7) {
+        // Let the dashboard paint first; never block the first render.
+        setTimeout(() => fetchPrices({ force: false }), 1500);
+    }
 };
 
 // --- Rendering Helpers ---
@@ -1132,7 +1247,7 @@ const setupEventListeners = () => {
     });
 
     // Refresh prices button
-    document.getElementById('btn-refresh-prices')?.addEventListener('click', fetchPrices);
+    document.getElementById('btn-refresh-prices')?.addEventListener('click', () => fetchPrices());
 
     // Save all tickers (bulk)
     document.getElementById('btn-save-all-tickers')?.addEventListener('click', saveAllTickers);

@@ -14,9 +14,11 @@ Live: <https://luisgonzalezbernal.com/net-worth-tracker/>
 | `app.js` | Rendering, forms, charts, price refresh, Drive UI |
 | `store.js` | State, ledger replay, snapshots, import/export |
 | `fx.js` | FX rates from Frankfurter with a validated cache |
+| `prices.js` | Price cache and provider payload parsing |
+| `concurrency.js` | Bounded-concurrency async pool (max 5 in flight) |
 | `drive.js` | Google Drive backup/restore/auto-sync |
 | `sw.js` | Offline shell (scope-relative, network-first) |
-| `store.test.js`, `fx.test.js` | `node:test` suites |
+| `*.test.js` | `node:test` suites |
 | `openspec/` | Specs and change history |
 | `ROADMAP.md` | Prioritised backlog and known limitations |
 

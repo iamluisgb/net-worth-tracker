@@ -18,6 +18,7 @@ const defaultState = () => ({
         theme: 'dark',
         alphaVantageKey: '',
         lastPriceUpdate: null,
+        priceCache: {},
         goalTarget: 0,
         monthlyContribution: 0
     }
@@ -49,6 +50,7 @@ class Store {
         this.state = this.load();
         this.listeners = [];
         this.onSaveError = null;
+        this._batchDepth = 0;
     }
 
     load() {
@@ -90,9 +92,24 @@ class Store {
     }
 
     notify() {
+        if (this._batchDepth > 0) return;
         this.recordSnapshot();
         this.listeners.forEach(listener => listener(this.state));
         this.save();
+    }
+
+    /**
+     * Run a synchronous block and notify once at the end instead of after every
+     * mutation. Used by the price refresh, which can touch dozens of assets.
+     */
+    batch(fn) {
+        this._batchDepth += 1;
+        try {
+            return fn();
+        } finally {
+            this._batchDepth -= 1;
+            if (this._batchDepth === 0) this.notify();
+        }
     }
 
     // --- Ordering ---

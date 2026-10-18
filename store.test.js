@@ -164,6 +164,20 @@ test('move transactions show up under the move filter', () => {
     assert.equal(store.state.assets.find(a => a.id === destination.id).quantity, 5);
 });
 
+test('batch notifies once and records the final snapshot', () => {
+    const asset = addCash(100);
+    let calls = 0;
+    store.subscribe(() => { calls++; });
+
+    store.batch(() => {
+        store.addTransaction({ assetId: asset.id, type: 'update', date: '2025-01-02', amount: 200 });
+        store.addTransaction({ assetId: asset.id, type: 'update', date: '2025-01-03', amount: 300 });
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(store.state.assets[0].currentValue, 300);
+});
+
 test('a full localStorage reports through onSaveError instead of failing silently', () => {
     const failing = memoryStorage();
     failing.setItem = () => { throw new Error('QuotaExceededError'); };

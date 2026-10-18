@@ -21,7 +21,9 @@ Backlog after the 2026-10 audit. Ordered by risk, not by novelty.
 - Accessible dialogs (focus trap, Escape, focus restore), zoom re-enabled,
   4.5:1 muted text, reduced-motion support.
 - PNG icons, maskable manifest entry, apple-touch-icon.
-- `node:test` suites for `store.js` and `fx.js` (26 tests) and a CI workflow.
+- Price refresh no longer waits 12s per ticker: five requests in flight, a
+  10-minute per-ticker cache and fail-fast on the Alpha Vantage daily limit.
+- `node:test` suites (42 tests) and a CI workflow.
 
 ## P0 — data safety
 
@@ -53,10 +55,10 @@ Backlog after the 2026-10 audit. Ordered by risk, not by novelty.
    and preview. Removes the main reason to abandon the app after a few months.
 6. **Encrypted backups.** The Drive backup is plain JSON in the user's private
    app data folder. Encrypt with a passphrase (WebCrypto AES-GCM) before upload.
-7. **Price refresh**: Alpha Vantage free tier is 25 requests/day and the loop
-   waits 12s per ticker with no progress or cancel. Evaluate Twelve Data or
-   Finnhub, fetch in parallel within the rate limit, show per-asset status and
-   allow cancellation. Files: `app.js` (`fetchPrices`).
+7. **Price refresh**: pacing is fixed (5 in flight, no artificial waits,
+   10-minute cache, fail-fast on the 25/day cap). Still missing: a progress
+   bar with cancellation and a provider with batching for portfolios above 25
+   tickers. Evaluate Twelve Data or Finnhub. Files: `app.js` (`fetchPrices`).
 8. **Privacy mode / app lock.** A blur toggle for screenshots and a local PIN
    gate for a device shared with others.
 9. **Rebalancing**: compare current allocation with a target per asset class
