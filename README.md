@@ -18,6 +18,7 @@ Live: <https://luisgonzalezbernal.com/net-worth-tracker/>
 | `sw.js` | Offline shell (scope-relative, network-first) |
 | `store.test.js`, `fx.test.js` | `node:test` suites |
 | `openspec/` | Specs and change history |
+| `ROADMAP.md` | Prioritised backlog and known limitations |
 
 ## Development
 
